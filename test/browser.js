@@ -154,11 +154,11 @@ const check = (cond, msg) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg); 
     await sleep(500);
     const fr = page.frames().find(f => f !== page.mainFrame());
     const note = await fr.textContent('#titleNote');
-    check(/github\.io/.test(note), 'iframe 안 → 시작 화면에 GitHub 주소 안내');
+    check(/막혀/.test(note) && /화면 누르기/.test(note), 'iframe 안 → 시작 화면에 센서 막힘 안내');
     await fr.click('#bTilt'); await sleep(1900);
     check(await fr.isVisible('#ovSensorFail'), 'iframe 안 센서 신호 없음 → 실패 화면');
     const why = await fr.textContent('#failWhy');
-    check(/github\.io/.test(why), '실패 화면에 주소 안내');
+    check(/막혀/.test(why), '실패 화면에 센서 막힘 안내');
     await page.screenshot({ path: shots + '/40_iframe_fail.png' });
     check(errs.length === 0, '페이지 오류 0' + (errs.length ? ': ' + errs.join(' | ') : ''));
   }
@@ -170,6 +170,11 @@ const check = (cond, msg) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg); 
     await page.goto(base + '/#test'); await sleep(300);
     check(await page.isVisible('#ovPortrait'), '세로 → "가로로 돌려 주세요"');
     await page.screenshot({ path: shots + '/50_portrait.png' });
+    await page.click('#bPortraitOk'); await sleep(200);
+    check(!(await page.isVisible('#ovPortrait')), '"세로로 그냥 하기" → 안내 닫힘');
+    await page.click('#bTouch'); await sleep(200);
+    await page.evaluate(() => window.__tb.startStage(2)); await sleep(800);
+    await page.screenshot({ path: shots + '/51_portrait_play.png' });
   }
 
   await browser.close(); server.close();
