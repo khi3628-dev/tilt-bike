@@ -719,7 +719,10 @@
       ctx.fillStyle = grd;
       ctx.fillRect(sx(g.x0), sy(ytop), (g.x1 - g.x0) * view.s, H);
     }
-    for (const pc of def.t.pieces) {
+    for (let pi = 0; pi < def.t.pieces.length; pi++) {
+      let pc = def.t.pieces[pi];
+      // 출발점 왼쪽도 땅이 이어져 보이게 (그림만)
+      if (pi === 0 && pc.length) pc = [[pc[0][0] - 40, pc[0][1]]].concat(pc);
       if (pc.length < 2 || pc[pc.length - 1][0] < left || pc[0][0] > right) continue;
       let i0 = 0, i1 = pc.length - 1;
       while (i0 < i1 && pc[i0 + 1][0] < left) i0++;
