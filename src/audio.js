@@ -3,7 +3,7 @@
   let ctx = null, master = null, sfxGain = null, musGain = null;
   let rollSrc = null, rollGain = null, rollFilter = null, windSrc = null, windGain = null, windFilter = null;
   const st = { sound: true, music: true, muted: false, musicWorld: -1, musicOn: false };
-  let noiseBuf = null;
+  let noiseBuf = null, fallStop = null;
 
   function ensure() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => { }); return true; }
@@ -60,7 +60,23 @@
     finish() { if (!ensure()) return; const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.22, t + i * 0.09)); tone(1319, 0.5, 'triangle', 0.2, t + 0.4); },
     star(i) { if (!ensure()) return; tone(880 * Math.pow(1.25, i), 0.16, 'triangle', 0.2, ctx.currentTime); },
     fail() { if (!ensure()) return; const t = ctx.currentTime; tone(330, 0.25, 'square', 0.12, t, 250); tone(220, 0.4, 'square', 0.12, t + 0.22, 150); },
-    whoosh() { if (!ensure()) return; burst(0.4, 0.4, ctx.currentTime, 1500, 'bandpass'); }
+    whoosh() { if (!ensure()) return; burst(0.4, 0.4, ctx.currentTime, 1500, 'bandpass'); },
+    fall() {   // 떨어지는 바람 소리 + 낮아지는 휘파람
+      if (!ensure()) return; const t = ctx.currentTime;
+      const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8; f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(2400, t + 1.6);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.6, t + 1.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.2);
+      s.connect(f).connect(g).connect(sfxGain); s.start(t); s.stop(t + 3.3);
+      tone(1200, 1.6, 'sine', 0.09, t + 0.05, 260);
+      fallStop = () => { try { const n = ctx.currentTime; g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), n); g.gain.exponentialRampToValueAtTime(0.0001, n + 0.08); } catch (e) { } };
+    },
+    thud() {   // 바닥에 쿵
+      if (!ensure()) return; const t = ctx.currentTime;
+      if (fallStop) { fallStop(); fallStop = null; }
+      burst(0.5, 2.2, t, 700); burst(0.9, 0.9, t + 0.05, 260);
+      tone(95, 0.6, 'sine', 0.9, t, 32); tone(60, 0.9, 'sine', 0.7, t + 0.02, 24);
+      for (let i = 0; i < 7; i++) burst(0.07, 0.5, t + 0.15 + Math.random() * 0.6, 1800, 'highpass');
+    }
   };
 
   // 달리는 소리: 매 프레임

@@ -18,8 +18,9 @@
     get(k, d) { try { const v = localStorage.getItem('tiltbike.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('tiltbike.' + k, JSON.stringify(v)); } catch (e) { } CG.dataSet('tiltbike.' + k, JSON.stringify(v)); }
   };
-  const SET = Object.assign({ sound: true, music: true, vib: true, input: null, invert: false, lang: null, view: 'fp' }, store.get('set', {}));
+  const SET = Object.assign({ sound: true, music: true, vib: true, input: null, invert: false, lang: null, view: null }, store.get('set', {}));
   let PROG = Object.assign({ stars: {}, best: {} }, store.get('prog', {}));
+  if (SET.view !== 'fp' && SET.view !== 'side') SET.view = isTouchDevice ? 'fp' : 'side';   // 폰 = 1인칭, PC = 옆(3인칭) 추천
   const saveSet = () => store.set('set', SET);
   const saveProg = () => store.set('prog', PROG);
 
@@ -169,6 +170,7 @@
   function startStage(i, opts) {
     if (playing && !demo) CG.gameplayStop();   // 플레이 중 다시 하기: 먼저 끝냈다고 알림
     stageIdx = i;
+    fall = null;
     sim = new C.Sim(i);
     playing = true; paused = false; endT = 0; demo = !!(opts && opts.demo);
     const snap = sim.snapshot();
@@ -347,10 +349,17 @@
     const bottom = view.y - H / 2 / view.s - 3;
     for (const g of def.gaps) {
       if (g.x1 < left || g.x0 > right) continue;
-      const ytop = C.groundYAt(def.t.pieces, g.x0 - 0.3);
-      const grd = ctx.createLinearGradient(0, sy(ytop), 0, sy(ytop - 6));
-      grd.addColorStop(0, 'rgba(40,30,25,.0)'); grd.addColorStop(0.3, 'rgba(40,30,25,.85)'); grd.addColorStop(1, '#1b1410');
-      ctx.fillStyle = grd; ctx.fillRect(sx(g.x0), sy(ytop), (g.x1 - g.x0) * view.s, H);
+      const ytop = C.groundYAt(def.t.pieces, g.x0 - 0.3), fy = pitFloor(g);
+      const grd = ctx.createLinearGradient(0, sy(ytop), 0, sy(fy));
+      grd.addColorStop(0, 'rgba(40,30,25,.0)'); grd.addColorStop(0.15, 'rgba(40,30,25,.85)'); grd.addColorStop(1, '#120c09');
+      ctx.fillStyle = grd; ctx.fillRect(sx(g.x0), sy(ytop), (g.x1 - g.x0) * view.s, sy(fy) - sy(ytop));
+      ctx.fillStyle = '#2a1d16'; ctx.fillRect(sx(g.x0) - 2, sy(fy), (g.x1 - g.x0) * view.s + 4, H * 3);
+      ctx.fillStyle = 'rgba(90,70,55,.6)'; for (let x = g.x0 + 0.4; x < g.x1; x += 0.9) { ctx.beginPath(); ctx.arc(sx(x), sy(fy) + 2, 0.18 * view.s, 0, Math.PI * 2); ctx.fill(); }
+    }
+    if (def.cliffX != null) {   // 낭떠러지 아래 계곡
+      const fy = cliffFloor();
+      ctx.fillStyle = '#355133'; ctx.fillRect(sx(def.cliffX), sy(fy), W + Math.abs(sx(def.cliffX)), H * 3);
+      ctx.fillStyle = '#4b7047'; ctx.fillRect(sx(def.cliffX), sy(fy), W + Math.abs(sx(def.cliffX)), 0.25 * view.s);
     }
     for (let pi = 0; pi < def.t.pieces.length; pi++) {
       let pc = def.t.pieces[pi];
@@ -544,6 +553,63 @@
                     { road: '#a0623a', road2: '#a9693f', line: '#ffe2b8', rumbleA: '#fff2d6', rumbleB: '#c9542a', grassB: '#cf8e45' },
                     { road: '#5b6579', road2: '#636d82', line: '#e9f1fa', rumbleA: '#ffffff', rumbleB: '#3b82c4', grassB: '#dbe5f2' } ];
   const fp = { pitch: 0, kick: 0, bob: 0, cache: null, cacheFor: null };
+  // 틈·낭떠러지 추락: 바닥 깊이(m) — 그림과 연출만, 물리 판정은 그대로
+  const PIT_DEPTH = 14, CLIFF_DEPTH = 28;
+  let fall = null;   // { kind, floorY, lipY, impactT, parts, flash, x0 }
+  function gapAt(x) { return sim.def.gaps.find(g => x >= g.x0 && x <= g.x1); }
+  function pitFloor(g) { return C.groundYAt(sim.def.t.pieces, g.x0 - 0.3) - PIT_DEPTH; }
+  function cliffFloor() { const d = sim.def; return d.cliffX != null ? C.groundYAt(d.t.pieces, d.cliffX - 0.3) - CLIFF_DEPTH : null; }
+  function startFall(kind) {
+    const x = sim.chassis.getPosition().x;
+    const g = kind === 'gap' && sim.def.gaps.length ? (gapAt(x) || sim.def.gaps.reduce((a, b) => Math.abs((b.x0 + b.x1) / 2 - x) < Math.abs((a.x0 + a.x1) / 2 - x) ? b : a)) : null;
+    const floorY = g ? pitFloor(g) : cliffFloor();
+    if (floorY == null || isNaN(floorY)) { A.SFX.crash(); return; }
+    const lipY = g ? C.groundYAt(sim.def.t.pieces, g.x0 - 0.3) : floorY + CLIFF_DEPTH;
+    fall = { kind, floorY, lipY, impactT: null, parts: [], flash: 0, x0: g ? g.x0 : sim.def.cliffX, x1: g ? g.x1 : null };
+    // 땅·벽에 걸리지 않고 끝까지 떨어지게: 자전거 충돌을 끔
+    for (const b of [sim.chassis, ...sim.wheels.map(w => w.body)]) for (let f = b.getFixtureList(); f; f = f.getNext()) f.setFilterData({ groupIndex: -1, categoryBits: 1, maskBits: 0 });
+    A.SFX.fall();
+  }
+  function updateFall(dt) {
+    if (!fall) return;
+    const pc = sim.chassis.getPosition(), eye = { x: pc.x + 0.3, y: pc.y + 1.3 };
+    fall.flash = Math.max(0, fall.flash - dt * 2.5);
+    if (fall.impactT == null && fall.x1 != null) {
+      // 구덩이: 맞은편 벽을 뚫고 나가지 않게
+      const lim = fall.x1 - 0.7, p = sim.chassis.getPosition();
+      if (p.x > lim) for (const b of [sim.chassis, ...sim.wheels.map(w => w.body)]) {
+        const v = b.getLinearVelocity(), q = b.getPosition();
+        b.setPosition({ x: q.x - (p.x - lim), y: q.y }); b.setLinearVelocity({ x: Math.min(0, v.x) * 0.3, y: v.y });
+      }
+    }
+    if (fall.impactT == null) {
+      const v = Math.abs(sim.chassis.getLinearVelocity().y);
+      for (let i = 0; i < Math.min(6, 1 + v * 0.4); i++) fall.parts.push({ x: Math.random() * W, y: H + 10, vy: -(400 + v * 90 + Math.random() * 300), r: 1 + Math.random() * 3, a: 0.5 + Math.random() * 0.4, dust: false });
+      if (eye.y < fall.floorY + 1.5) {
+        fall.impactT = endT; fall.flash = 1; view.shake = 26; fp.kick = 1.6;
+        A.SFX.thud(); vibrate([90, 40, 140]);
+        for (const b of [sim.chassis, ...sim.wheels.map(w => w.body)]) { b.setLinearVelocity({ x: 0, y: 0 }); b.setAngularVelocity(0); b.setStatic(); }
+        for (let i = 0; i < 70; i++) { const ang = Math.PI * (1 + Math.random()); const sp = 120 + Math.random() * 520; fall.parts.push({ x: W / 2 + (Math.random() - 0.5) * W * 0.6, y: H * 0.8, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: 2 + Math.random() * 7, a: 0.7, dust: true }); }
+      }
+    }
+    for (const p of fall.parts) { p.x += (p.vx || 0) * dt; p.y += p.vy * dt; if (p.dust) { p.vy += 500 * dt; p.a -= dt * 0.7; } }
+    fall.parts = fall.parts.filter(p => p.y > -20 && p.a > 0 && p.y < H + 40);
+  }
+  function drawFallFx(depth) {
+    if (!fall) return;
+    const k = Math.max(0, Math.min(1, depth / (fall.kind === 'gap' ? PIT_DEPTH : CLIFF_DEPTH)));
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.25, W / 2, H / 2, Math.hypot(W, H) * 0.6);
+    vg.addColorStop(0, 'rgba(0,0,0,' + (0.15 * k) + ')'); vg.addColorStop(1, 'rgba(0,0,0,' + (0.25 + 0.55 * k) + ')');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    if (fall.impactT == null) {
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.12 + 0.25 * k) + ')'; ctx.lineWidth = 2;
+      const t = performance.now() / 1000;
+      for (let i = 0; i < 18; i++) { const x = ((i * 137.5) % W), y = H - ((t * (900 + i * 40)) % (H + 200)); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 60 + k * 120); ctx.stroke(); }
+    }
+    for (const p of fall.parts) { ctx.fillStyle = p.dust ? 'rgba(150,120,95,' + Math.max(0, p.a) + ')' : 'rgba(110,90,75,' + p.a + ')'; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
+    if (fall.flash > 0) { ctx.fillStyle = 'rgba(30,10,5,' + (fall.flash * 0.75) + ')'; ctx.fillRect(0, 0, W, H); }
+  }
+
   function fpCache() {
     if (fp.cacheFor === sim) return fp.cache;
     const pcs = sim.def.t.pieces;
@@ -583,11 +649,11 @@
     const snap = sim.snapshot();
     fpCache();
     const ch = sim.chassis;
-    const eye = ch.getWorldPoint({ x: 0.16, y: 1.45 });
-    let ang = ch.getAngle();
+    const eye = fall ? (() => { const p = ch.getPosition(); return { x: p.x + 0.3, y: p.y + 1.3 }; })() : ch.getWorldPoint({ x: 0.16, y: 1.45 });
+    let ang = fall ? -0.75 : ch.getAngle();      // 떨어질 때는 시선을 아래로 숙여 바닥이 다가오는 게 보이게
     while (ang - fp.pitch > Math.PI) ang -= 2 * Math.PI;
     while (ang - fp.pitch < -Math.PI) ang += 2 * Math.PI;
-    fp.pitch += (ang - fp.pitch) * (1 - Math.exp(-dt / 0.1));
+    fp.pitch += (ang - fp.pitch) * (1 - Math.exp(-dt / (fall ? 0.35 : 0.1)));
     fp.kick *= Math.exp(-dt / 0.12);
     const kz = Math.min(1, snap.speed / 14);
     const pitch = fp.pitch - 8 * DEG + fp.kick * 0.05;
@@ -628,6 +694,7 @@
     const items = [];
     const HW = 1.7, RB = 0.32;
     const xs = [];
+    if (fall) for (let d = -14; d < 0.25; d += 0.35) xs.push(camX + d);   // 내려다볼 때는 발밑·뒤쪽 바닥도
     for (let d = 0.25; d < 80;) { xs.push(camX + d); d += d < 10 ? 0.35 : d < 25 ? 0.7 : d < 45 ? 1.4 : 2.6; }
     const inZone = (x, z) => z && x >= z.x0 && x <= z.x1;
     for (let i = 0; i < xs.length - 1; i++) {
@@ -636,14 +703,19 @@
       const ca = fpLookup(fp.cache.cs, xa), cb = fpLookup(fp.cache.cs, xb);
       const la = lat(xa), lb = lat(xb);
       if (isNaN(ya) || isNaN(yb)) {
-        // 틈·낭떠러지: 어두운 구덩이
-        const g = def.gaps.find(g => xa >= g.x0 - 0.5 && xa <= g.x1 + 0.5);   // 낭떠러지 너머는 하늘만
-        if (!g) continue;
-        const ly = C.groundYAt(def.t.pieces, g.x0 - 0.3);
-        if (ly == null) continue;
-        const pa = proj(xa, ly - 7, 0), pb = proj(xb, ly - 7, 0);
-        if (!pa || !pb) continue;
-        items.push({ fw: pa[2], draw() { ctx.fillStyle = '#1b1410'; ctx.fillRect(0, Math.min(pb[1], pa[1]) - 1, W, Math.abs(pa[1] - pb[1]) + 2); } });
+        // 틈: 깊은 구덩이 바닥 / 낭떠러지: 저 아래 계곡 바닥
+        const g = def.gaps.find(g => xa >= g.x0 - 0.5 && xa <= g.x1 + 0.5);
+        const cliff = !g && def.cliffX != null && xa > def.cliffX;
+        const fy = g ? pitFloor(g) : cliff ? cliffFloor() : null;
+        if (fy == null || isNaN(fy)) continue;
+        const pa = proj(xa, fy, 0), pb = proj(xb, fy, 0);
+        if (!pa || !pb || pa[1] < pb[1] - 0.5) continue;
+        const stripe = Math.floor((xa + xb) / 2 / 1.2) % 2 === 0;
+        items.push({ fw: pa[2], draw() {
+          ctx.fillStyle = g ? (stripe ? '#2a1d16' : '#241912') : (stripe ? '#3d5a3a' : '#355133');
+          ctx.fillRect(0, pb[1] - 0.5, W, pa[1] - pb[1] + 1.5);
+          if (g && stripe) { ctx.fillStyle = 'rgba(90,70,55,.5)'; const w = f / pa[2]; for (let k = -3; k <= 3; k++) { ctx.beginPath(); ctx.arc(pa[0] + k * 2.1 * w, pa[1] - 2, Math.max(1, 0.25 * w), 0, Math.PI * 2); ctx.fill(); } }
+        } });
         continue;
       }
       const A = proj(xa, ya, la), B = proj(xb, yb, lb);
@@ -672,9 +744,31 @@
         }
       } });
     }
+    // 구덩이 양쪽 절벽 벽 (지층 무늬) — 떨어질 때 위로 스쳐 지나감
+    for (const g of def.gaps) {
+      if (sim.bridges.some(b => Math.abs(b.def.x0 - g.x0) < 0.01) && !(fall && fall.x0 === g.x0)) continue;   // 멀쩡한 다리 밑은 생략
+      const bot = pitFloor(g);
+      for (const [wx, side] of [[g.x1, 1], [g.x0, -1]]) {
+        if (side < 0 && !fall) continue;                         // 앞쪽 벽은 떨어질 때만 보임
+        const top = C.groundYAt(def.t.pieces, wx + side * 0.05);
+        if (top == null) continue;
+        const Bt = proj(wx, bot, 0); if (!Bt) continue;
+        items.push({ fw: Bt[2] + 0.001, draw() {
+          const n = Math.ceil((top - bot) / 1.1);
+          for (let k = 0; k < n; k++) {
+            const ya = top - k * 1.1, yb = Math.max(bot, ya - 1.1);
+            const A = proj(wx, ya, 0), B = proj(wx, yb, 0); if (!A || !B) continue;
+            const dark = k / n, c = k % 2 ? [122, 86, 62] : [104, 72, 52];
+            ctx.fillStyle = 'rgb(' + c.map(v => Math.round(v * (1 - 0.6 * dark))).join(',') + ')';
+            ctx.fillRect(0, Math.min(A[1], B[1]) - 0.5, W, Math.abs(B[1] - A[1]) + 1);
+          }
+        } });
+      }
+    }
     // 다리 판자
     for (const br of sim.bridges) {
       const w = (br.def.x1 - br.def.x0) / br.planks.length;
+
       for (const pl of br.planks) {
         const p = pl.body.getPosition(), l = lat(p.x);
         const A = proj(p.x - w / 2, p.y + 0.12, l), B = proj(p.x + w / 2, p.y + 0.12, l);
@@ -757,8 +851,9 @@
     items.sort((a, b) => b.fw - a.fw);
     for (const it of items) it.draw();
     drawWind(snap.speed, snap.vx, snap.wind, dt);
-    drawHands(snap, dt);
-    if (sim.result && !sim.result.ok) { ctx.fillStyle = 'rgba(201,72,52,' + Math.min(0.35, endT * 0.5) + ')'; ctx.fillRect(0, 0, W, H); }
+    if (!fall || fall.impactT == null) drawHands(snap, dt);
+    if (fall) drawFallFx(fall.lipY - eye.y);
+    else if (sim.result && !sim.result.ok) { ctx.fillStyle = 'rgba(201,72,52,' + Math.min(0.35, endT * 0.5) + ')'; ctx.fillRect(0, 0, W, H); }
   }
 
   // 핸들과 두 손
@@ -824,13 +919,14 @@
     const look = Math.max(-2, Math.min(4.5, snap.vx * 0.35));
     const tx = snap.x + 2.5 + look, ty = snap.y + 1.2;
     view.x += (tx - view.x) * (1 - Math.exp(-dt / 0.18));
-    view.y += (ty - view.y) * (1 - Math.exp(-dt / 0.3));
+    view.y += (ty - view.y) * (1 - Math.exp(-dt / (fall ? 0.08 : 0.3)));
     drawBackground();
     ctx.save();
     if (view.shake > 0) { ctx.translate((Math.random() - 0.5) * view.shake, (Math.random() - 0.5) * view.shake); view.shake = Math.max(0, view.shake - dt * 40); }
     drawTerrain(); drawProps(); drawBike(snap.speed);
     ctx.restore();
     drawWind(snap.speed, snap.vx, snap.wind, dt);
+    if (fall) drawFallFx(fall.lipY - sim.chassis.getPosition().y);
   }
 
   // ---------- 진단 ----------
@@ -867,7 +963,7 @@
     const inputs = isTouchDevice ? [['tilt', T('inputTilt')], ['touch', T('inputTouch')]] : [['keys', T('inputKeys')]];
     seg('segInput', inputs, Input.mode, v => { if (v === 'tilt') enableTilt(); else { Input.mode = v; SET.input = v; saveSet(); applyTexts(); } });
     seg('segLang', [['ko', '한국어'], ['en', 'English']], L.lang, v => { L.set(v); SET.lang = v; saveSet(); applyTexts(); });
-    seg('segView', [['fp', T('viewFP')], ['side', T('viewSide')]], SET.view === 'side' ? 'side' : 'fp', v => { SET.view = v; saveSet(); applyTexts(); });
+    seg('segView', [['fp', T('viewFP') + ' · ' + T('recMobile')], ['side', T('viewSide') + ' · ' + T('recPC')]], SET.view === 'side' ? 'side' : 'fp', v => { SET.view = v; saveSet(); applyTexts(); });
     $('bRecalib').style.display = Input.mode === 'tilt' && SET.view === 'side' ? '' : 'none';
     $('bDiag').style.display = isTouchDevice ? '' : 'none';
     $('bReset').textContent = resetArmed ? T('resetConfirm') : T('resetProgress');
@@ -893,7 +989,7 @@
         else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); }
         else if (ev.t === 'gate') { A.SFX.gate(); vibrate(10); }
         else if (ev.t === 'bridge') A.SFX.bridge();
-        else if (ev.t === 'crash') { A.SFX.crash(); vibrate([40, 30, 60]); view.shake = 10; }
+        else if (ev.t === 'crash') { if (ev.kind === 'gap' || ev.kind === 'cliff') { startFall(ev.kind); view.shake = 4; } else { A.SFX.crash(); vibrate([40, 30, 60]); view.shake = 10; } }
       }
       $('timer').textContent = sim.time.toFixed(1);
       if (sim.result) { endT = 0; playing = false; A.quiet(); }
@@ -901,9 +997,11 @@
       A.update(sim.speed(), sim.grounded(), sim.windNow, dt);
     } else if (sim && sim.result && !anyOverlay()) {
       sim.world.setGravity({ x: C.G * Math.sin(phiDeg * DEG), y: -C.G * Math.cos(phiDeg * DEG) });
-      sim.stepFree(dt);
+      if (!(fall && fall.impactT != null)) sim.stepFree(dt);
       endT += dt;
-      if (endT > (sim.result.ok ? 0.6 : 1.2)) { setToast(null); finish(); }
+      updateFall(dt);
+      const done = sim.result.ok ? endT > 0.6 : fall ? (fall.impactT != null ? endT - fall.impactT > 1.0 : endT > 4) : endT > 1.2;
+      if (done) { setToast(null); finish(); }
     }
     if (hintTimer > 0) { hintTimer -= dt; if (hintTimer <= 0) $('hint').style.opacity = 0; }
     if ($('ovDiag').classList.contains('show')) $('diagText').textContent = diagLines().join('\n');

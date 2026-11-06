@@ -35,7 +35,7 @@
     rotateTitle: '폰을 가로로 돌려 주세요', rotateText: '화면이 안 돌아가면 <b>화면 방향 잠금</b>을 꺼 주세요.', rotateAnyway: '세로로 그냥 하기',
     stopHere: '여기서 멈추기', stopZone: '멈춤 구역', ad: '광고…', loading: '불러오는 중…',
     totalStars: '별', worldClear: '세계 완주', stars3: '별 3개: 기준 시간 안에 완주',
-    on: '켬', off: '끔', view: '시점', viewFP: '1인칭', viewSide: '옆에서', introFP1: '폰을 가로로 <b>똑바로 세워</b> 들고 화면을 보세요.', introFP2: '<b>앞으로 숙일수록</b> 내리막이 가팔라지고(90°에서 최고), 뒤로 젖히면 브레이크예요.', dPitch: '앞뒤 각도'
+    on: '켬', off: '끔', view: '시점', viewFP: '1인칭', viewSide: '옆에서', introFP1: '폰을 가로로 <b>똑바로 세워</b> 들고 화면을 보세요.', introFP2: '<b>앞으로 숙일수록</b> 내리막이 가팔라지고(90°에서 최고), 뒤로 젖히면 브레이크예요.', dPitch: '앞뒤 각도', recMobile: '모바일 추천', recPC: 'PC 추천'
   };
   const EN = {
     title: 'Tilt Bike', tapToStart: 'Tap to start',
@@ -72,7 +72,7 @@
     rotateTitle: 'Turn your phone sideways', rotateText: 'If it will not rotate, turn off <b>orientation lock</b>.', rotateAnyway: 'Play in portrait anyway',
     stopHere: 'Stop here', stopZone: 'Stop zone', ad: 'Advertisement…', loading: 'Loading…',
     totalStars: 'stars', worldClear: 'World cleared', stars3: '3 stars: finish within the target time',
-    on: 'On', off: 'Off', view: 'View', viewFP: 'First person', viewSide: 'Side', introFP1: 'Hold the phone sideways and <b>upright</b>, screen facing you.', introFP2: '<b>Lean it forward</b> to ride downhill (steepest at 90°). Lean back to brake.', dPitch: 'Forward lean'
+    on: 'On', off: 'Off', view: 'View', viewFP: 'First person', viewSide: 'Side', introFP1: 'Hold the phone sideways and <b>upright</b>, screen facing you.', introFP2: '<b>Lean it forward</b> to ride downhill (steepest at 90°). Lean back to brake.', dPitch: 'Forward lean', recMobile: 'best on mobile', recPC: 'best on PC'
   };
   let lang = 'ko';
   const api = {
