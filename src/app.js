@@ -12,11 +12,13 @@
   const hasMotion = typeof DeviceMotionEvent !== 'undefined';
   const TEST = location.hash === '#test';
   const IMG = {};                            // 그림 (있으면 씀)
+  const LAB = C.IS_LAB ? window.Lab : null;   // [실험실] 효과 실험판에서만 있음
+  const PFX = LAB ? 'tiltlab.' : 'tiltbike.';
 
   // ---------- 저장 ----------
   const store = {
-    get(k, d) { try { const v = localStorage.getItem('tiltbike.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('tiltbike.' + k, JSON.stringify(v)); } catch (e) { } CG.dataSet('tiltbike.' + k, JSON.stringify(v)); }
+    get(k, d) { try { const v = localStorage.getItem(PFX + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(PFX + k, JSON.stringify(v)); } catch (e) { } CG.dataSet(PFX + k, JSON.stringify(v)); }
   };
   const SET = Object.assign({ sound: true, music: true, vib: true, input: null, invert: false, lang: null, view: null }, store.get('set', {}));
   let PROG = Object.assign({ stars: {}, best: {} }, store.get('prog', {}));
@@ -152,7 +154,7 @@
   const stageIdxOfWorld = w => [...Array(C.stageCount).keys()].filter(i => worldOf(i) === w);
   const starsOf = i => PROG.stars[i] || 0;
   const totalStars = () => Object.values(PROG.stars).reduce((a, b) => a + b, 0);
-  const unlocked = i => TEST && window.__unlockAll ? true : (i === 0 || starsOf(i - 1) > 0);
+  const unlocked = i => LAB || (TEST && window.__unlockAll) ? true : (i === 0 || starsOf(i - 1) > 0);
   const worldUnlocked = w => unlocked(stageIdxOfWorld(w)[0]);
   const worldStars = w => stageIdxOfWorld(w).reduce((a, i) => a + starsOf(i), 0);
 
@@ -165,13 +167,15 @@
     { sky0: '#f3a05a', sky1: '#ffe2b8', far: '#c9825a', near: '#e0a46e', dirt: '#b8683a', dirt2: '#8f4e2a', grass: '#d9994f', grass2: '#f0c27a', rock: '#7a4a33', rock2: '#55301f', sun: 'rgba(255,230,170,.95)' },
     { sky0: '#3b4f78', sky1: '#9db4d6', far: '#5c6f94', near: '#8ea4c4', dirt: '#6f7f99', dirt2: '#4f5d75', grass: '#e9f1fa', grass2: '#ffffff', rock: '#4c5566', rock2: '#2f3642', sun: 'rgba(230,236,255,.8)' }
   ];
-  const curTheme = () => THEMES[sim ? sim.def.world : 0];
+  const themeIdx = () => sim ? (sim.def.theme != null ? sim.def.theme : sim.def.world) : 0;
+  const curTheme = () => THEMES[themeIdx()];
 
   function startStage(i, opts) {
     if (playing && !demo) CG.gameplayStop();   // 플레이 중 다시 하기: 먼저 끝냈다고 알림
     stageIdx = i;
     fall = null;
     sim = new C.Sim(i);
+    if (LAB) { LAB.reset(sim); LAB.jumpButton(!demo && !!sim.def.jump && isTouchDevice, doJump); }
     playing = true; paused = false; endT = 0; demo = !!(opts && opts.demo);
     const snap = sim.snapshot();
     view.x = snap.x + 2; view.y = snap.y + 1;
@@ -185,21 +189,24 @@
       $('touchhint').style.opacity = th ? 1 : 0;
       if (th) setTimeout(() => { $('touchhint').style.opacity = 0; }, 6000);
       show(null);
-      A.music(sim.def.world);
+      A.music(themeIdx());
       CG.gameplayStart();
     }
   }
+  function doJump() { if (sim && playing && !paused && sim.def.jump && !anyOverlay()) sim.jump(); }
   function setHint(text, sec) { $('hint').textContent = text; $('hint').style.opacity = 1; hintTimer = sec; }
   function setToast(text, sec) { toastOn = !!text; if (text) $('toast').textContent = text; $('toast').style.opacity = text ? 1 : 0; if (text && sec) setTimeout(() => { if ($('toast').textContent === text) setToast(null); }, sec * 1000); }
   function vibrate(ms) { if (SET.vib && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { } } }
 
   function openTitle() {
+    if (LAB) LAB.jumpButton(false);
     playing = false; $('hud').style.display = 'none'; $('touchhint').style.opacity = 0;
     A.music(null); A.quiet();
     show('title');
     startStage(0, { demo: true });
   }
   function openWorlds() {
+    if (LAB) LAB.jumpButton(false);
     playing = false; paused = false; $('hud').style.display = 'none'; $('touchhint').style.opacity = 0; A.quiet();
     CG.gameplayStop();
     const Lst = $('worldList'); Lst.innerHTML = '';
@@ -207,7 +214,7 @@
       const b = document.createElement('button');
       const un = worldUnlocked(wi), ws = worldStars(wi), max = stageIdxOfWorld(wi).length * 3;
       b.className = 'tile world' + (un ? (ws === max ? ' done' : '') : ' locked');
-      b.innerHTML = '<span class="n">' + (un ? ['🏡', '🏜️', '🏔️'][wi] : '🔒') + '</span><span class="wn">' + L.pick(w.name) + '</span><span class="ws">' + (un ? '★ ' + ws + '/' + max : T('locked')) + '</span>';
+      b.innerHTML = '<span class="n">' + (un ? (LAB ? '🧪' : ['🏡', '🏜️', '🏔️'][wi]) : '🔒') + '</span><span class="wn">' + L.pick(w.name) + '</span><span class="ws">' + (un ? '★ ' + ws + '/' + max : T('locked')) + '</span>';
       b.onclick = () => { A.SFX.click(); if (!un) { setToast(T('lockedWorldToast'), 2); return; } openStages(wi); };
       Lst.appendChild(b);
     });
@@ -216,6 +223,7 @@
   }
   let curWorld = 0;
   function openStages(w) {
+    if (LAB) LAB.jumpButton(false);
     curWorld = w; playing = false; paused = false; $('hud').style.display = 'none'; $('touchhint').style.opacity = 0; A.quiet();
     CG.gameplayStop();
     const Lst = $('stageList'); Lst.innerHTML = '';
@@ -223,7 +231,7 @@
       const d = C.STAGES[i](); const un = unlocked(i), st = starsOf(i);
       const b = document.createElement('button');
       b.className = 'tile' + (un ? (st ? ' done' : '') : ' locked');
-      b.innerHTML = '<span class="n">' + (un ? d.id.split('-')[1] : '🔒') + '</span>' + L.pick(d.name) + '<span class="stars">' + (st ? '★'.repeat(st) + '☆'.repeat(3 - st) : '') + '</span>';
+      b.innerHTML = '<span class="n">' + (un ? (d.icon || d.id.split('-')[1]) : '🔒') + '</span>' + L.pick(d.name) + '<span class="stars">' + (st ? '★'.repeat(st) + '☆'.repeat(3 - st) : '') + '</span>';
       b.onclick = () => { A.SFX.click(); if (!un) { setToast(T('lockedToast'), 2); return; } startStage(i); };
       Lst.appendChild(b);
     }
@@ -250,7 +258,7 @@
       $('resIcon').textContent = last && st ? '🏆' : '🏁';
       $('resTitle').textContent = last && totalStars() >= C.stageCount ? T('allClear') : (sim.def.stopZone ? T('finishedStop') : T('finished'));
       $('resStars').innerHTML = [0, 1, 2].map(k => '<span class="' + (k < st ? 'lit' : '') + '" style="display:inline-block">★</span>').join('');
-      $('resNums').innerHTML = '<span>' + T('time') + ' <b>' + t.toFixed(1) + 's</b>' + (isBest && best != null ? ' · ' + T('newBest') : '') + '</span><span>' + T('par') + ' <b>' + C.PAR[stageIdx].toFixed(1) + 's</b></span>';
+      $('resNums').innerHTML = '<span>' + T('time') + ' <b>' + t.toFixed(1) + 's</b>' + (isBest && best != null ? ' · ' + T('newBest') : '') + '</span>' + (C.PAR[stageIdx] != null ? '<span>' + T('par') + ' <b>' + C.PAR[stageIdx].toFixed(1) + 's</b></span>' : '');
       $('resText').textContent = last ? T('allClearText') : '';
       $('bNext').textContent = T('next'); $('bNext').style.display = last ? 'none' : '';
       A.SFX.finish(); vibrate([30, 40, 30]);
@@ -315,7 +323,7 @@
     ctx.translate(W / 2, H / 2);
     ctx.rotate(-phiDeg * DEG);
     const ext = Math.hypot(W, H);
-    const img = IMG['bg' + (sim ? sim.def.world : 0)];
+    const img = IMG['bg' + themeIdx()];
     // 바닥 색 (그림이 안 덮는 귀퉁이용)
     const gr0 = ctx.createLinearGradient(0, -H / 2, 0, H / 2);
     gr0.addColorStop(0, th.sky0); gr0.addColorStop(1, th.sky1);
@@ -438,14 +446,14 @@
     for (const sg of def.signs) {
       const gy = drawPole(sg.x, 1.5); if (gy == null) continue;
       const bx = sx(sg.x), by = sy(gy + 1.75), r = 0.48 * s;
-      const col = { rabbit: '#e07b00', turtle: '#2f8f4e', wind: '#3b82c4', stop: '#c94834' }[sg.kind];
+      const col = { rabbit: '#e07b00', turtle: '#2f8f4e', wind: '#3b82c4', stop: '#c94834', ice: '#3b9fd8', rock: '#7a6f66', mud: '#7a5233', jump: '#e8553d' }[sg.kind];
       ctx.fillStyle = '#fff'; ctx.strokeStyle = col; ctx.lineWidth = 0.09 * s;
       ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - r, by - r, r * 2, r * 2, 0.15 * s) : ctx.rect(bx - r, by - r, r * 2, r * 2);
       ctx.fill(); ctx.stroke();
       ctx.font = Math.round(0.62 * s) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       if (sg.kind === 'wind') {
         ctx.save(); ctx.translate(bx, by + 0.03 * s); if (sg.dir < 0) ctx.scale(-1, 1); ctx.fillText('💨', 0, 0); ctx.restore();
-      } else ctx.fillText({ rabbit: '🐇', turtle: '🐢', stop: '🛑' }[sg.kind], bx, by + 0.03 * s);
+      } else ctx.fillText({ rabbit: '🐇', turtle: '🐢', stop: '🛑', ice: '🧊', rock: '🪨', mud: '💦', jump: '⤴️' }[sg.kind], bx, by + 0.03 * s);
     }
     if (def.finish != null) {
       const gy = drawPole(def.finish, 2.3, '#333');
@@ -645,7 +653,7 @@
   const curveD = x => 3.2 / 23 * Math.cos(x / 23) + 1.6 / 9.5 * Math.cos(x / 9.5 + 1.3);
 
   function renderFP(dt) {
-    const def = sim.def, th = curTheme(), rd = FP_ROAD[def.world];
+    const def = sim.def, th = curTheme(), rd = FP_ROAD[themeIdx()];
     const snap = sim.snapshot();
     fpCache();
     const ch = sim.chassis;
@@ -661,6 +669,7 @@
     let shx = 0, shy = 0;
     if (view.shake > 0) { shx = (Math.random() - 0.5) * view.shake; shy = (Math.random() - 0.5) * view.shake; view.shake = Math.max(0, view.shake - dt * 40); }
     if (snap.grounded > 0 && snap.speed > 1) { shx += (Math.random() - 0.5) * Math.min(2.5, snap.speed * 0.15); shy += (Math.random() - 0.5) * Math.min(2.5, snap.speed * 0.15); }
+    if (LAB && LAB.shake) { shx += (Math.random() - 0.5) * LAB.shake * 2.2; shy += (Math.random() - 0.5) * LAB.shake * 3; }
     const cx = W / 2 + shx, cy = H * 0.44 + shy + fp.kick * H * 0.03;
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
     const camX = eye.x, camY = eye.y, c0 = curve(camX), cd0 = curveD(camX);
@@ -673,12 +682,18 @@
     };
     // 하늘 + 지평선 (폰 기울기만큼 지평선이 올라가거나 내려감)
     const phi = phiDeg * DEG;
-    const yh = cy - f * Math.tan(Math.max(-1.2, Math.min(1.2, phi - pitch)));
+    let rel = phi - pitch, flip = false;
+    if (LAB) { rel = Math.atan2(Math.sin(rel), Math.cos(rel)); if (Math.cos(rel) < 0) { flip = true; rel = rel > 0 ? rel - Math.PI : rel + Math.PI; } }   // [실험실] 루프에서 거꾸로 매달리면 하늘이 아래
+    const yh = cy - f * Math.tan(Math.max(-1.2, Math.min(1.2, rel)));
     const gr = ctx.createLinearGradient(0, yh - H, 0, yh);
     gr.addColorStop(0, th.sky0); gr.addColorStop(1, th.sky1);
     ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
-    const img = IMG['bg' + def.world];
-    if (img && img.complete && img.naturalWidth) {
+    const img = IMG['bg' + themeIdx()];
+    if (flip) {
+      const g2 = ctx.createLinearGradient(0, yh, 0, yh + H); g2.addColorStop(0, th.sky1); g2.addColorStop(1, th.sky0);
+      ctx.fillStyle = g2; ctx.fillRect(0, yh, W, H);
+      ctx.fillStyle = th.near; ctx.fillRect(0, 0, W, Math.max(0, yh));
+    } else if (img && img.complete && img.naturalWidth) {
       const iw = W * 1.35, ih = iw * img.naturalHeight / img.naturalWidth;
       const per = iw * 2, off = (((camX * 6) % per) + per) % per;
       const y = yh - ih * 0.62;
@@ -695,6 +710,7 @@
     const HW = 1.7, RB = 0.32;
     const xs = [];
     if (fall) for (let d = -14; d < 0.25; d += 0.35) xs.push(camX + d);   // 내려다볼 때는 발밑·뒤쪽 바닥도
+    else if (LAB && sim.rail) for (let d = -30; d < 0.25; d += 0.5) xs.push(camX + d);   // [실험실] 루프 안: 뒤쪽 길도
     for (let d = 0.25; d < 80;) { xs.push(camX + d); d += d < 10 ? 0.35 : d < 25 ? 0.7 : d < 45 ? 1.4 : 2.6; }
     const inZone = (x, z) => z && x >= z.x0 && x <= z.x1;
     for (let i = 0; i < xs.length - 1; i++) {
@@ -720,7 +736,7 @@
       }
       const A = proj(xa, ya, la), B = proj(xb, yb, lb);
       if (!A || !B) continue;
-      if (A[1] < B[1] - 0.5) continue;      // 고개 너머(뒷면)
+      if (A[1] < B[1] - 0.5 && !(LAB && sim.rail)) continue;      // 고개 너머(뒷면)
       const wa = f / A[2], wb = f / B[2];
       const mid = (xa + xb) / 2;
       const stripe = Math.floor(mid / 1.2) % 2 === 0;
@@ -732,7 +748,8 @@
         ctx.fillRect(0, B[1] - 0.5, W, A[1] - B[1] + 1.5);
         const quad = (h0, h1, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(A[0] + h0 * wa, A[1]); ctx.lineTo(A[0] + h1 * wa, A[1]); ctx.lineTo(B[0] + h1 * wb, B[1] + 0.5); ctx.lineTo(B[0] + h0 * wb, B[1] + 0.5); ctx.closePath(); ctx.fill(); };
         quad(-HW - RB, HW + RB, stripe ? rd.rumbleA : rd.rumbleB);
-        quad(-HW, HW, zoneHere ? (stripe ? '#ffd43b' : '#f5c518') : (stripe ? rd.road : rd.road2));
+        const sc = LAB && LAB.fpRoad(def, mid, stripe);
+        quad(-HW, HW, zoneHere ? (stripe ? '#ffd43b' : '#f5c518') : sc || (stripe ? rd.road : rd.road2));
         if (stripe && !zoneHere) quad(-0.06, 0.06, rd.line);
         if (wind) { ctx.globalAlpha = 0.18; quad(-HW, HW, '#ffffff'); ctx.globalAlpha = 1; }
         if (ceil && ceil[0] && ceil[1]) {
@@ -793,12 +810,12 @@
       items.push({ fw: pl.fw, draw() {
         pl.draw();
         const s = f / pl.fw, r = 0.5 * s, bx = pl.Q[0], by = pl.Q[1] - r * 0.6;
-        const col = { rabbit: '#e07b00', turtle: '#2f8f4e', wind: '#3b82c4', stop: '#c94834' }[sg.kind];
+        const col = { rabbit: '#e07b00', turtle: '#2f8f4e', wind: '#3b82c4', stop: '#c94834', ice: '#3b9fd8', rock: '#7a6f66', mud: '#7a5233', jump: '#e8553d' }[sg.kind];
         ctx.fillStyle = '#fff'; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, 0.09 * s);
         ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - r, by - r, r * 2, r * 2, 0.15 * s) : ctx.rect(bx - r, by - r, r * 2, r * 2); ctx.fill(); ctx.stroke();
         ctx.font = Math.max(6, Math.round(0.64 * s)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         if (sg.kind === 'wind') { ctx.save(); ctx.translate(bx, by); if (sg.dir < 0) ctx.scale(-1, 1); ctx.fillText('💨', 0, 0); ctx.restore(); }
-        else ctx.fillText({ rabbit: '🐇', turtle: '🐢', stop: '🛑' }[sg.kind], bx, by);
+        else ctx.fillText({ rabbit: '🐇', turtle: '🐢', stop: '🛑', ice: '🧊', rock: '🪨', mud: '💦', jump: '⤴️' }[sg.kind], bx, by);
       } });
     }
     // 결승 아치
@@ -848,10 +865,14 @@
         }
       } });
     }
+    const lg = LAB ? { ctx, sim, proj, lat, f, HW, rd, W, H, dt } : null;
+    if (LAB) { for (const it of LAB.fpItems(lg)) items.push(it); LAB.fogBegin(def); }
     items.sort((a, b) => b.fw - a.fw);
-    for (const it of items) it.draw();
+    for (const it of items) { if (LAB) LAB.fogAt(it.fw, ctx, W, H); it.draw(); }
     drawWind(snap.speed, snap.vx, snap.wind, dt);
+    if (LAB) LAB.screen(lg, true);
     if (!fall || fall.impactT == null) drawHands(snap, dt);
+    if (LAB) LAB.lensFx(lg);
     if (fall) drawFallFx(fall.lipY - eye.y);
     else if (sim.result && !sim.result.ok) { ctx.fillStyle = 'rgba(201,72,52,' + Math.min(0.35, endT * 0.5) + ')'; ctx.fillRect(0, 0, W, H); }
   }
@@ -917,15 +938,21 @@
     const targetS = base * (1 - 0.18 * kz);
     view.s += (targetS - view.s) * (1 - Math.exp(-dt / 0.5));
     const look = Math.max(-2, Math.min(4.5, snap.vx * 0.35));
-    const tx = snap.x + 2.5 + look, ty = snap.y + 1.2;
+    const tx = snap.x + 2.5 + look, ty = snap.y + 1.2 + (LAB && !snap.grounded ? Math.max(-3.5, Math.min(0, sim.chassis.getLinearVelocity().y * 0.3)) : 0);   // [실험실] 빨리 떨어지면 아래를 더 보여 줌
     view.x += (tx - view.x) * (1 - Math.exp(-dt / 0.18));
     view.y += (ty - view.y) * (1 - Math.exp(-dt / (fall ? 0.08 : 0.3)));
     drawBackground();
     ctx.save();
     if (view.shake > 0) { ctx.translate((Math.random() - 0.5) * view.shake, (Math.random() - 0.5) * view.shake); view.shake = Math.max(0, view.shake - dt * 40); }
-    drawTerrain(); drawProps(); drawBike(snap.speed);
+    if (LAB && LAB.shake && !sim.result) view.shake = Math.max(view.shake, LAB.shake * 0.6);
+    drawTerrain();
+    const lg = LAB ? { ctx, sx, sy, s: view.s, sim, W, H, dt, left: view.x - W / 2 / view.s - 2, right: view.x + W / 2 / view.s + 2 } : null;
+    if (LAB) LAB.sideTerrain(lg);
+    drawProps(); drawBike(snap.speed);
+    if (LAB) LAB.sideParticles(lg);
     ctx.restore();
     drawWind(snap.speed, snap.vx, snap.wind, dt);
+    if (LAB) LAB.screen(lg, false);
     if (fall) drawFallFx(fall.lipY - sim.chassis.getPosition().y);
   }
 
@@ -995,6 +1022,7 @@
       if (sim.result) { endT = 0; playing = false; A.quiet(); }
       if (!sim.result && sim.backTime > 1.2 && !toastOn) setToast(T('backToast'), 4);
       A.update(sim.speed(), sim.grounded(), sim.windNow, dt);
+      if (LAB) { LAB.update(sim, dt, SET.view !== 'side'); A.lab(LAB.surf, sim.speed(), sim.grounded() > 0, LAB.rain, dt); }
     } else if (sim && sim.result && !anyOverlay()) {
       sim.world.setGravity({ x: C.G * Math.sin(phiDeg * DEG), y: -C.G * Math.cos(phiDeg * DEG) });
       if (!(fall && fall.impactT != null)) sim.stepFree(dt);
@@ -1060,7 +1088,7 @@
   on('bList', () => { A.SFX.click(); openStages(worldOf(stageIdx)); });
   function withAdMaybe(fn) { fn(); }   // 플레이 중 다시 하기는 광고 없음
 
-  cv.addEventListener('pointerdown', e => { A.ensure(); if (Input.mode === 'touch' && playing) { Input.touchX = e.clientX; try { cv.setPointerCapture(e.pointerId); } catch (_) { } } });
+  cv.addEventListener('pointerdown', e => { A.ensure(); if (LAB && Input.mode !== 'touch') doJump(); if (Input.mode === 'touch' && playing) { Input.touchX = e.clientX; try { cv.setPointerCapture(e.pointerId); } catch (_) { } } });
   cv.addEventListener('pointermove', e => { if (Input.mode === 'touch' && Input.touchX != null) Input.touchX = e.clientX; });
   const up = () => { Input.touchX = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
@@ -1071,6 +1099,7 @@
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { if (paused) resumeGame(); else pauseGame(); }
     if ((e.key === 'v' || e.key === 'V') && !anyOverlay()) { SET.view = SET.view === 'side' ? 'fp' : 'side'; saveSet(); }
     if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
+    if (LAB && (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') && !e.repeat) doJump();
     if ((e.key === 'Enter' || e.key === ' ') && current() === 'title') { A.ensure(); firstScreen(); }
   });
   window.addEventListener('keyup', e => {

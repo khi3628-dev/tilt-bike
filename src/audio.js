@@ -90,7 +90,31 @@
     windGain.gain.setTargetAtTime(wind, t, 0.15);
     windFilter.frequency.setTargetAtTime(500 + speed * 70 + Math.abs(windF || 0) * 120, t, 0.2);
   }
-  function quiet() { if (!ctx) return; const t = ctx.currentTime; rollGain.gain.setTargetAtTime(0, t, 0.05); windGain.gain.setTargetAtTime(0, t, 0.05); }
+  function quiet() { if (!ctx) return; const t = ctx.currentTime; rollGain.gain.setTargetAtTime(0, t, 0.05); windGain.gain.setTargetAtTime(0, t, 0.05); if (labL) { labL.hissG.gain.setTargetAtTime(0, t, 0.05); labL.rainG.gain.setTargetAtTime(0, t, 0.2); } }
+
+  // [실험실] 바닥 재질·비 소리 (실험실에서만 부름)
+  let labL = null; const labAcc = { rock: 0, mud: 0, drip: 0 };
+  function labLoops() {
+    if (labL) return labL;
+    const mk = (type, freq, q) => { const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const fl = ctx.createBiquadFilter(); fl.type = type; fl.frequency.value = freq; if (q) fl.Q.value = q; const g = ctx.createGain(); g.gain.value = 0; src.connect(fl).connect(g).connect(sfxGain); src.start(0, Math.random()); return g; };
+    labL = { hissG: mk('highpass', 3200), rainG: mk('bandpass', 2600, 0.4) };
+    return labL;
+  }
+  function lab(surf, speed, grounded, rain, dt) {
+    if (!ctx) return;
+    const t = ctx.currentTime, Lp = labLoops();
+    Lp.hissG.gain.setTargetAtTime(surf === 'ice' && grounded ? Math.min(2.2, speed * 0.16) : 0, t, 0.08);
+    Lp.rainG.gain.setTargetAtTime(rain ? 1.6 * rain : 0, t, 0.3);
+    if (surf === 'rock' && grounded && speed > 0.8) {      // 덜컹덜컹
+      labAcc.rock += dt * (3 + speed * 1.6);
+      while (labAcc.rock >= 1) { labAcc.rock -= 1; burst(0.05, 0.35 + Math.random() * 0.5 * Math.min(1, speed / 8), t + Math.random() * 0.03, 900 + Math.random() * 900, 'bandpass'); if (Math.random() < 0.3) tone(140 + Math.random() * 60, 0.06, 'square', 0.04, t); }
+    } else labAcc.rock = 0;
+    if (surf === 'mud' && grounded && speed > 0.8) {       // 철벅철벅
+      labAcc.mud += dt * (1 + speed * 0.7);
+      while (labAcc.mud >= 1) { labAcc.mud -= 1; const t0 = t + Math.random() * 0.05; burst(0.14, 0.7 * Math.min(1, speed / 6), t0, 420); tone(210 + Math.random() * 80, 0.12, 'sine', 0.1, t0, 80); }
+    } else labAcc.mud = 0;
+    if (rain) { labAcc.drip += dt * 5; while (labAcc.drip >= 1) { labAcc.drip -= 1; tone(1800 + Math.random() * 1600, 0.03, 'sine', 0.025, t + Math.random() * 0.2); } }
+  }
 
   // ---------- 음악: 세계마다 다른 간단한 루프 ----------
   const SONGS = [
@@ -129,7 +153,7 @@
   }
 
   const api = {
-    ensure, update, quiet, music, SFX,
+    ensure, update, quiet, music, SFX, lab,
     set(k, v) { st[k] = v; applyVolumes(); },
     get(k) { return st[k]; },
     setMuted(m) { st.muted = !!m; applyVolumes(); }

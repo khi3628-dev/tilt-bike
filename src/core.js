@@ -62,6 +62,49 @@
     return this;
   };
   Terrain.prototype.mark = function (name) { this.marks[name] = { x: this.x, y: this.y }; return this; };
+  // [실험실] 돌길: 평지(또는 deg 경사) len m 동안 작은 돌 요철
+  Terrain.prototype.rocky = function (len, deg, amp, seed) {
+    let r = seed || 7; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;
+    const a = (deg || 0) * Math.PI / 180, cur = this.pieces[this.pieces.length - 1];
+    let d = 0; const x0 = this.x, y0 = this.y;
+    while (d < len) {
+      const w = 0.5 + rnd() * 0.6, h = (amp || 0.12) * (0.4 + rnd() * 0.8);
+      for (let i = 1; i <= 4; i++) {
+        const u = i / 4, dd = Math.min(len, d + w * u);
+        const bx = x0 + dd * Math.cos(a), by = y0 + dd * Math.sin(a) + h * Math.sin(Math.PI * u);
+        cur.push([bx, by]);
+      }
+      d += w;
+    }
+    this.x = x0 + len * Math.cos(a); this.y = y0 + len * Math.sin(a); this.a = a;
+    cur.push([this.x, this.y]);
+    return this;
+  };
+  // [실험실] 점프로 넘어야 하는 상자 (높이 h, 폭 w)
+  Terrain.prototype.block = function (h, w) {
+    const cur = this.pieces[this.pieces.length - 1];
+    this.blocks = this.blocks || [];
+    this.blocks.push({ x0: this.x, x1: this.x + w, y: this.y, h });
+    cur.push([this.x + 0.02, this.y + h], [this.x + w - 0.02, this.y + h], [this.x + w, this.y]);
+    this.x += w; this.a = 0;
+    return this;
+  };
+  // [실험실] 360° 루프: 지금 위치가 루프 바닥. 길은 그대로 앞으로 이어짐
+  // 곡률이 0→1/r로 서서히 커지는 진입·탈출 곡선(클로소이드)이라 앞바퀴가 벽에 박히지 않음
+  Terrain.prototype.loop = function (r, le) {
+    le = le || 4;
+    const k = 1 / r, arc = 2 * Math.PI * r, total = arc + le, ds = 0.05, path = [[this.x, this.y]];
+    let x = this.x, y = this.y, h = 0, top = 0;
+    for (let d = ds; d <= total + 1e-9; d += ds) {
+      const kk = d < le ? k * d / le : d > arc ? k * (total - d) / le : k;
+      h += kk * ds; x += Math.cos(h) * ds; y += Math.sin(h) * ds; path.push([x, y]);
+      if (!top && h >= Math.PI) top = path.length - 1;
+    }
+    const xs = path.map(p => p[0]), ys = path.map(p => p[1]);
+    this.loops = this.loops || [];
+    this.loops.push({ path, top, x0: Math.min(...xs), x1: Math.max(...xs), y0: this.y, y1: Math.max(...ys), xTop: path[top][0], xIn: this.x, xOut: x, r });
+    return this;
+  };
 
   // 바위 천장 (턱 구간 b~e 위, 높이 H)
   function tunnelCeil(b, e, H) {
@@ -238,14 +281,85 @@
       gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 7.5 }, { x0: t.marks.b0.x, x1: t.marks.b1.x }], cliffX: t.marks.cliff.x });
   });
 
-  const STAGES = S;
-  const WORLDS = [
+
+  // ===== [실험실] 효과 실험 코스 (게임 판과 별개, window.TILT_LAB일 때만 씀) =====
+  const LAB = [];
+  const lab = (o) => { o.world = 0; o.lab = true; const t = o.t; o.loops = t.loops || []; o.blocks = t.blocks || []; return def(o); };
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(10, -6, 3).mark('i0').go(30, -9, 3).go(12, 0, 4).mark('i1').go(30, 0, 3).mark('end');
+    return lab({ id: 'L1', theme: 2, icon: '🧊', name: { ko: '빙판 내리막', en: 'Icy Slope' }, hint: { ko: '얼음! 내리막에서 확 빨라지고, 반대로 기울여도 잘 안 서요.', en: 'Ice! You speed up fast and braking barely works.' },
+      t, start: 3, finish: t.marks.end.x - 8, surfaces: [{ x0: t.marks.i0.x, x1: t.marks.i1.x, type: 'ice' }], signs: [{ x: t.marks.i0.x - 4, kind: 'ice' }] });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(16, -7, 3).go(3, 0, 2).mark('r0').rocky(40, 0, 0.14, 11).mark('r1').go(6, 0, 0).go(24, 0, 2).mark('end');
+    return lab({ id: 'L2', theme: 1, icon: '🪨', name: { ko: '돌길', en: 'Rocky Road' }, hint: { ko: '울퉁불퉁 돌길이라 덜컹거리고 느려져요. 계속 기울이세요.', en: 'Bumpy rocks shake you and slow you down. Keep tilting.' },
+      t, start: 3, finish: t.marks.end.x - 8, surfaces: [{ x0: t.marks.r0.x, x1: t.marks.r1.x, type: 'rock' }], signs: [{ x: t.marks.r0.x - 4, kind: 'rock' }] });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(18, -8, 3).go(4, 0, 2).mark('m0').go(22, 0, 0).mark('m1').go(6, 0, 0).go(14, -6, 3).mark('m2').go(14, 0, 3).mark('m3').go(24, 0, 3).mark('end');
+    return lab({ id: 'L3', theme: 0, icon: '💦', name: { ko: '진흙탕', en: 'Mud Pit' }, hint: { ko: '진흙은 빠를수록 흙탕물이 튀어요. 속도가 쭉 빠져요.', en: 'The faster you go, the more mud flies. It drags you down.' },
+      t, start: 3, finish: t.marks.end.x - 8, surfaces: [{ x0: t.marks.m0.x, x1: t.marks.m1.x, type: 'mud' }, { x0: t.marks.m2.x, x1: t.marks.m3.x, type: 'mud' }], signs: [{ x: t.marks.m0.x - 4, kind: 'mud' }] });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(14, -6, 3).go(6, 0, 2).mark('b1').block(0.55, 0.8).go(18, 0, 0).mark('b2').block(0.6, 0.8).go(18, 0, 0).mark('j').gap(3.2, 0).go(18, 0, 0).mark('b3').block(0.55, 1.2).go(26, 0, 0).mark('end');
+    return lab({ id: 'L4', theme: 0, icon: '⤴️', name: { ko: '터치 점프', en: 'Tap to Jump' }, hint: { ko: '화면을 누르면 점프! (키보드: 스페이스) 상자와 틈을 넘으세요.', en: 'Tap to jump! (Keyboard: Space) Clear the crates and the gap.' },
+      t, start: 3, finish: t.marks.end.x - 8, jump: true,
+      signs: [{ x: t.marks.b1.x - 5, kind: 'jump' }, { x: t.marks.b2.x - 5, kind: 'jump' }, { x: t.marks.j.x - 5, kind: 'jump' }, { x: t.marks.b3.x - 5, kind: 'jump' }],
+      gaps: [{ x0: t.marks.j.x, x1: t.marks.j.x + 3.2 }] });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(18, -9, 3).go(8, 0, 2).mark('lip').gap(3, -4).go(30, -30, 3).mark('hillEnd').go(16, 0, 12).go(8, -6, 3).go(6, 0, 3).mark('kick').go(4.5, 16, 2.5).mark('lip2').gap(5, 1.2).go(24, 0, 0).mark('end');
+    return lab({ id: 'L5', theme: 1, icon: '🏔️', name: { ko: '높낮이 큰 틈', en: 'Big Drops' }, hint: { ko: '낭떠러지에서 뛰어내려 긴 경사에 착지! 다음엔 위로 넘어요. 점프도 돼요.', en: 'Leap off the edge onto the long slope, then jump up the other side. Tap to jump.' },
+      t, start: 3, finish: t.marks.end.x - 8, jump: true,
+      signs: [{ x: t.marks.lip.x - 9, kind: 'rabbit' }, { x: t.marks.kick.x - 10, kind: 'rabbit' }],
+      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 3, deep: true }, { x0: t.marks.lip2.x, x1: t.marks.lip2.x + 5 }] });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(20, -10, 4).go(8, 0, 3).mark('kick').go(4.5, 16, 2.5).mark('lip').gap(7, -2.2).go(14, -12, 0).go(10, 0, 4).mark('bumps').kickers(2).mark('bumpsEnd')
+      .go(8, 0, 0).go(10, 6, 3).mark('plateau').go(14, 0, 3).mark('cliff').cliff();
+    const p = t.marks.plateau;
+    return lab({ id: 'L6', theme: 0, icon: '🌫️', name: { ko: '안개', en: 'Fog' }, hint: { ko: '안개 때문에 앞이 잘 안 보여요. 표지판이 늦게 나타나요.', en: 'Thick fog. Signs appear late, so be ready.' },
+      t, start: 3, stopZone: { x0: p.x + 4, x1: p.x + 9.5 }, env: { fog: 15 },
+      signs: [{ x: t.marks.kick.x - 10, kind: 'rabbit' }, { x: t.marks.bumps.x - 6, kind: 'turtle' }],
+      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 7 }], cliffX: t.marks.cliff.x });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(20, -8, 3).go(10, 0, 3).go(16, -10, 3).go(6, 0, 3).mark('kick').go(4.5, 14, 2.5).mark('lip').gap(6, -2).go(14, -10, 0).go(26, 0, 4).mark('end');
+    return lab({ id: 'L7', theme: 2, icon: '🌧️', name: { ko: '비', en: 'Rain' }, hint: { ko: '비에 젖은 길은 조금 미끄러워요. 브레이크가 덜 들어요.', en: 'The wet road is a little slippery. Brakes work less.' },
+      t, start: 3, finish: t.marks.end.x - 8, env: { rain: 1 }, surfaces: [{ x0: -50, x1: 1e4, type: 'wet' }],
+      signs: [{ x: t.marks.kick.x - 10, kind: 'rabbit' }], gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 6 }] });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(14, -8, 3).mark('w0').go(30, 0, 0).mark('w1').go(6, 0, 0).go(12, -6, 3).mark('w2').go(30, 0, 0).mark('w3').go(20, 0, 3).mark('end');
+    return lab({ id: 'L8', theme: 1, icon: '🌪️', name: { ko: '돌풍', en: 'Gusts' }, hint: { ko: '바람이 세졌다 약해졌다 해요. 밀리면 더 기울이세요.', en: 'Gusts come and go. Lean harder when they push back.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      winds: [{ x0: t.marks.w0.x, x1: t.marks.w1.x, f: -2.2, gust: 4.2, per: 3.2 }, { x0: t.marks.w2.x, x1: t.marks.w3.x, f: 1.2, gust: 4.6, per: 2.6 }],
+      signs: [{ x: t.marks.w0.x - 4, kind: 'wind', dir: -1 }, { x: t.marks.w2.x - 4, kind: 'wind', dir: 1 }] });
+  });
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(4, -10, 2).go(40, -30, 4).go(12, 0, 12).mark('loop').loop(5, 4).go(30, 0, 0).mark('end');
+    return lab({ id: 'L9', theme: 0, icon: '🎢', name: { ko: '360° 루프', en: '360° Loop' }, hint: { ko: '끝까지 기울여 빠르게! 느리면 꼭대기에서 떨어져요.', en: 'Full tilt! Too slow and you fall off the top.' },
+      t, start: 3, finish: t.marks.end.x - 8, signs: [{ x: t.marks.loop.x - 10, kind: 'rabbit' }] });
+  });
+
+  const IS_LAB = !!root.TILT_LAB;
+  const STAGES = IS_LAB ? LAB : S;
+  const WORLDS = IS_LAB ? [{ id: 'lab', name: { ko: '효과 실험실', en: 'Effect Lab' } }] : [
     { id: 'hills', name: { ko: '언덕 마을', en: 'Hillside' } },
     { id: 'canyon', name: { ko: '협곡', en: 'Canyon' } },
     { id: 'storm', name: { ko: '폭풍 봉우리', en: 'Storm Peak' } }
   ];
   // 기준 시간(초): test/par.js가 모범 운전으로 잰 시간 × 1.1 (3★ ≤ par, 2★ ≤ par × 1.4)
-  const PAR = [7, 8.5, 9, 14.5, 24, 10.5, 7.5, 21, 15.5, 21.5, 10, 16.5, 18, 23.5, 31.5];
+  const PAR = IS_LAB ? [] : [7, 8.5, 9, 14.5, 24, 10.5, 7.5, 21, 15.5, 21.5, 10, 16.5, 18, 23.5, 31.5];
 
   function groundYAt(pieces, x) {
     for (const pc of pieces) {
@@ -295,7 +409,16 @@
       return { def: gt, body, gy, open: false, holdTime: 0, lift: 0 };
     });
     this.killY = minY - 6;
+    // [실험실] 루프: 앞 반쪽(분류 2)·뒤 반쪽(분류 4). 자전거는 꼭대기를 지나면 2 대신 4와 부딪힘
+    this.loops = (def.loops || []).map(L => {
+      const n = L.path.length, ov = 20, pick = (i0, i1) => { const pts = []; for (let i = i0; i < i1; i += 4) pts.push(Vec2(L.path[i][0], L.path[i][1])); pts.push(Vec2(L.path[i1][0], L.path[i1][1])); return pts; };
+      const b = world.createBody();
+      b.createFixture(Chain(pick(0, Math.min(n - 1, L.top + ov)), false), { friction: 0.95, userData: 'ground', filterCategoryBits: 2 });
+      b.createFixture(Chain(pick(Math.max(0, L.top - ov), n - 1), false), { friction: 0.95, userData: 'ground', filterCategoryBits: 4 });
+      return Object.assign({ passed: false, done: false }, L);
+    });
     this.makeBike(def.start);
+    if (this.loops.length) this.setBikeMask(0xFFFB);
     this.phi = 0; this.time = 0; this.acc = 0;
     this.result = null;
     this.crashKind = null;
@@ -342,6 +465,26 @@
     this.kDrag = Math.sin(MAX_TILT) * G * this.mass / (VT * VT);
   };
 
+  function nearestIdx(path, p) { let bi = 0, bd = 1e9; for (let i = 0; i < path.length; i += 2) { const d = (path[i][0] - p.x) ** 2 + (path[i][1] - p.y) ** 2; if (d < bd) { bd = d; bi = i; } } return bi; }
+  Sim.prototype.setBikeMask = function (mask) {
+    for (const b of [this.chassis, ...this.wheels.map(w => w.body)])
+      for (let f = b.getFixtureList(); f; f = f.getNext()) f.setFilterData({ groupIndex: -1, categoryBits: 1, maskBits: mask });
+  };
+  // [실험실] 바닥 재질: rr = 구름 저항, push = 내리막 가속 보탬(얼음), visc = 속도 비례 감속(진흙)
+  const SURF = { ice: { rr: 0.002, push: 0.6, brake: 0.5 }, rock: { rr: 0.1 }, mud: { rr: 0.05, visc: 0.22 }, wet: { rr: 0.012, push: 0.1, brake: 0.25 } };
+  Sim.prototype.surfaceAt = function (x) {
+    const ss = this.def.surfaces; if (!ss) return null;
+    for (const s of ss) if (x >= s.x0 && x <= s.x1) return s.type;
+    return null;
+  };
+  // [실험실] 점프: 바퀴가 땅에 닿아 있을 때만
+  Sim.prototype.jump = function () {
+    if (this.result || this.grounded() === 0 || this.time - (this.lastJump == null ? -9 : this.lastJump) < 0.35) return false;
+    const a = this.chassis.getAngle(), n = Vec2(-Math.sin(a), Math.cos(a)), J = 5.2;
+    for (const b of [this.chassis, ...this.wheels.map(w => w.body)]) { const v = b.getLinearVelocity(); b.setLinearVelocity(Vec2(v.x + n.x * J, v.y + n.y * J)); }
+    this.lastJump = this.time; this.jumps = (this.jumps || 0) + 1;
+    return true;
+  };
   Sim.prototype.grounded = function () {
     let n = 0;
     for (const w of this.wheels) {
@@ -373,15 +516,43 @@
     const v = ch.getLinearVelocity();
     const sp = v.length();
     const p = ch.getPosition();
-    if (sp > 0.01) ch.applyForceToCenter(Vec2(-this.kDrag * v.x * sp, -this.kDrag * v.y * sp), true);
+    // [실험실] 루프 안은 레일 위처럼: 공기저항 15%, 서스펜션 단단하게
+    const pp = ch.getPosition(), railNow = this.loops.length > 0 && this.loops.some(L => pp.x > L.x0 - 1 && pp.x < L.x1 + 1 && pp.y > L.y0 + R + 0.15);
+    if (railNow !== !!this.rail) { this.rail = railNow; for (const w of this.wheels) w.joint.setSpringFrequencyHz(railNow ? 12 : 4.5); }
+    const kd = this.kDrag * (railNow ? 0.15 : 1);
+    if (sp > 0.01) {
+      if (this.def.lab) { // [실험실] 공기저항을 무게 비율로 나눠 걸어 공중에서 앞이 들리지 않게
+        for (const b of [ch, this.wheels[0].body, this.wheels[1].body]) { const sh = b.getMass() / this.mass, bv = b.getLinearVelocity(); b.applyForceToCenter(Vec2(-kd * bv.x * sp * sh, -kd * bv.y * sp * sh), true); }
+      } else ch.applyForceToCenter(Vec2(-kd * v.x * sp, -kd * v.y * sp), true);
+    }
     const gnd = this.grounded();
+    if (this.def.lab) ch.setAngularDamping(gnd === 0 && !this.rail ? 4 : 0); // [실험실] 공중 균형: 공중에서 차체 회전을 천천히 멈춤
+    const st = gnd > 0 ? this.surfaceAt(p.x) : null, S0 = st && SURF[st];
+    this.surfNow = st;
     if (gnd > 0 && sp > 0.001) {
-      const f = CRR * this.mass * G * Math.tanh(sp / 0.3) * (gnd / 2);
+      const f = (S0 ? S0.rr : CRR) * this.mass * G * Math.tanh(sp / 0.3) * (gnd / 2);
       ch.applyForceToCenter(Vec2(-f * v.x / sp, -f * v.y / sp), true);
+    }
+    if (S0 && gnd > 0) {
+      const ya = groundYAt(this.def.t.pieces, p.x - 0.5), yb = groundYAt(this.def.t.pieces, p.x + 0.5);
+      const sl = ya != null && yb != null ? Math.atan2(yb - ya, 1) : 0, tx = Math.cos(sl), ty = Math.sin(sl);
+      const along = G * Math.sin(this.phi - sl);                    // 기울기+경사로 생기는 앞뒤 가속
+      if (S0.push && along > 0) ch.applyForceToCenter(Vec2(S0.push * this.mass * along * tx, S0.push * this.mass * along * ty), true);
+      if (S0.brake && along < 0) ch.applyForceToCenter(Vec2(-S0.brake * this.mass * along * tx, -S0.brake * this.mass * along * ty), true);
+      if (S0.visc) ch.applyForceToCenter(Vec2(-S0.visc * this.mass * v.x, -S0.visc * this.mass * v.y), true);
     }
     // 바람
     this.windNow = 0;
-    for (const w of this.def.winds) if (p.x >= w.x0 && p.x <= w.x1) { this.windNow = w.f; ch.applyForceToCenter(Vec2(w.f * this.mass, 0), true); }
+    for (const w of this.def.winds) if (p.x >= w.x0 && p.x <= w.x1) {
+      let f = w.f;
+      if (w.gust) { const t = this.time; f = w.f + w.gust * Math.sin(2 * Math.PI * t / (w.per || 3)) * (0.65 + 0.35 * Math.sin(2 * Math.PI * t / 1.3 + 1)); }
+      this.windNow = f; ch.applyForceToCenter(Vec2(f * this.mass, 0), true);
+    }
+    // 루프: 꼭대기를 지나면 뒤 반쪽과 부딪히게, 빠져나가면 원래대로
+    for (const L of this.loops) {
+      if (!L.passed && p.x > L.x0 - 0.5 && p.x < L.x1 + 0.5 && p.y > (L.y0 + L.y1) / 2 && nearestIdx(L.path, p) > L.top) { L.passed = true; this.setBikeMask(0xFFFD); }
+      if (L.passed && !L.done && p.x > L.x1 + 1.2 && p.y < L.y0 + 1.5) { L.done = true; this.setBikeMask(0xFFFB); }
+    }
     // 썩은 다리: 처음 밟은 뒤 판자가 차례로 떨어짐
     for (const br of this.bridges) {
       if (br.touchedAt == null) continue;
@@ -426,13 +597,15 @@
       this.events.push({ t: 'crash', kind: k });
     };
     if (this.crashKind) { fail(this.crashKind === 'ceil' ? 'ceil' : this.crashKind === 'gate' ? 'gate' : 'crash'); return; }
-    if (p.y < this.killY || (inGap && p.y < groundYAt(def.t.pieces, gapHere.x0 - 0.5) - 3)) { fail(cliff ? 'cliff' : 'gap'); return; }
+    const gapFloor = gapHere ? (gapHere.deep ? Math.min(groundYAt(def.t.pieces, gapHere.x0 - 0.5), groundYAt(def.t.pieces, gapHere.x1 + 0.5)) : groundYAt(def.t.pieces, gapHere.x0 - 0.5)) - 3 : 0;
+    if (p.y < this.killY || (inGap && p.y < gapFloor)) { fail(cliff ? 'cliff' : 'gap'); return; }
+    const inLoop = this.loops.some(L => (L.passed && !L.done) || (p.x > L.x0 - 1.5 && p.x < L.x1 + 1.5 && p.y > L.y0 + R + 0.25));
     let a = ch.getAngle() % (2 * Math.PI);
     if (a > Math.PI) a -= 2 * Math.PI; if (a < -Math.PI) a += 2 * Math.PI;
-    this.upsideTime = Math.abs(a) > 2.0 ? this.upsideTime + DT : 0;
+    this.upsideTime = Math.abs(a) > 2.0 && !inLoop ? this.upsideTime + DT : 0;
     if (this.upsideTime > 0.4) { fail('crash'); return; }
     const ya = groundYAt(def.t.pieces, p.x - 0.5), yb = groundYAt(def.t.pieces, p.x + 0.5);
-    if (ya != null && yb != null && this.grounded() > 0 && !gapHere) {
+    if (ya != null && yb != null && this.grounded() > 0 && !gapHere && !inLoop) {
       const rel = a - Math.atan2(yb - ya, 1);
       if (Math.abs(rel) > 45 * Math.PI / 180) { fail('crash', { pitch: rel }); return; }
     }
@@ -458,12 +631,12 @@
       x: p.x, y: p.y, angle: ch.getAngle(),
       wheels: this.wheels.map(w => { const q = w.body.getPosition(); return { x: q.x, y: q.y, angle: w.body.getAngle() }; }),
       speed: this.speed(), vx: this.vx(), grounded: this.grounded(), time: this.time, wind: this.windNow,
-      gates: this.gates.map(g => g.open)
+      gates: this.gates.map(g => g.open), surf: this.surfNow || null
     };
   };
   Sim.prototype.drainEvents = function () { const e = this.events; this.events = []; return e; };
 
-  const api = { Sim, STAGES, WORLDS, PAR, stars, G, MAX_TILT, R, groundYAt, stageCount: STAGES.length };
+  const api = { Sim, STAGES, WORLDS, PAR, stars, LAB, IS_LAB, G, MAX_TILT, R, groundYAt, stageCount: STAGES.length };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TiltCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
