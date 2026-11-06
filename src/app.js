@@ -164,7 +164,8 @@
   const stageIdxOfWorld = w => [...Array(C.stageCount).keys()].filter(i => worldOf(i) === w);
   const starsOf = i => PROG.stars[i] || 0;
   const totalStars = () => Object.values(PROG.stars).reduce((a, b) => a + b, 0);
-  const unlocked = i => C.IS_LAB || (TEST && window.__unlockAll) ? true : (i === 0 || starsOf(i - 1) > 0);
+  const OPEN = !!window.TILT_OPEN || /[?&#]open\b/.test(location.href);   // 시험용: 모든 세계·판·거꾸로 판 열기 (주소 뒤 ?open)
+  const unlocked = i => C.IS_LAB || OPEN || (TEST && window.__unlockAll) ? true : (i === 0 || starsOf(i - 1) > 0);
   const worldUnlocked = w => unlocked(stageIdxOfWorld(w)[0]);
   const worldStars = w => stageIdxOfWorld(w).reduce((a, i) => a + starsOf(i), 0);
 
@@ -274,7 +275,7 @@
     $('stagesNote').textContent = revMode ? T('reverseNote') : T('stars3');
     for (const i of stageIdxOfWorld(w)) {
       const d = C.STAGES[i]();
-      const has = !revMode || !!C.parR(d.id), un = revMode ? has && starsOf(i) > 0 : unlocked(i), st = revMode ? (PROG.rstars[i] || 0) : starsOf(i);
+      const has = !revMode || !!C.parR(d.id), un = revMode ? has && (OPEN || starsOf(i) > 0) : unlocked(i), st = revMode ? (PROG.rstars[i] || 0) : starsOf(i);
       const b = document.createElement('button');
       b.className = 'tile' + (un ? (st ? ' done' : '') : ' locked');
       if (revMode && !has) { b.innerHTML = '<span class="n">✖</span>' + L.pick(d.name) + '<span class="stars"></span>'; b.className = 'tile locked'; b.onclick = () => setToast(T('noReverse'), 2); Lst.appendChild(b); continue; }
