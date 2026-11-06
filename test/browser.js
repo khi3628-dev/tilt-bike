@@ -187,7 +187,36 @@ const HANGUL = /[ㄱ-ㆎ가-힣]/;
   // [4] 기울기 모드 (센서 흉내)
   console.log('[4] 기울기 (센서 흉내)');
   {
-    const { page, errs } = await mk(844, 390, { isMobile: true, hasTouch: true }, 'window.DeviceMotionEvent.requestPermission = () => Promise.resolve("granted");');
+    // (a) 1인칭: 0점 고정, 앞으로 숙이기 (iOS 부호: 화면이 하늘을 보면 z = -9.8)
+    {
+      const { page, errs } = await mk(844, 390, { isMobile: true, hasTouch: true }, 'window.DeviceMotionEvent.requestPermission = () => Promise.resolve("granted");');
+      await page.goto(base + '/#test'); await sleep(300);
+      await page.evaluate(() => { window.__g = { x: -9.8, y: 0, z: 0 }; window.__mv = setInterval(() => window.dispatchEvent(new DeviceMotionEvent('devicemotion', { accelerationIncludingGravity: window.__g })), 16); });
+      await page.tap('#title'); await sleep(200);
+      check(/앞으로 숙일수록|Lean it forward/.test(await page.textContent('#inLine2')), '1인칭 시작 안내: 앞으로 숙이기');
+      await page.tap('#bTilt'); await sleep(700);
+      check((await page.evaluate(() => window.__tb.state())).overlay === 'ovWorlds', '1인칭 기울기: 0° 맞추기 없이 바로 세계 목록');
+      await page.evaluate(() => window.__tb.startStage(0));
+      const lean = (deg) => page.evaluate((deg) => { const a = deg * Math.PI / 180; window.__g = { x: -9.8 * Math.cos(a), y: 0, z: -9.8 * Math.sin(a) }; }, deg);
+      await lean(0); await sleep(600);
+      let p = await page.evaluate(() => window.__tb.state().phiDeg);
+      check(Math.abs(p) < 0.05, '세워 들면 0° (게임 ' + p.toFixed(2) + '°)');
+      await lean(47); await sleep(700); p = await page.evaluate(() => window.__tb.state().phiDeg);
+      check(Math.abs(p - (47 - 4) * 25 / 86) < 0.6, '앞으로 47° → 게임 +' + p.toFixed(1) + '° (기대 12.5)');
+      await sleep(2500);
+      check((await page.evaluate(() => window.__tb.sim.snapshot().x)) > 6, '숙이니 전진');
+      await lean(90); await sleep(700); p = await page.evaluate(() => window.__tb.state().phiDeg);
+      check(Math.abs(p - 25) < 0.3, '앞으로 90° → 최고 +25° (게임 ' + p.toFixed(1) + '°)');
+      await lean(-45); await sleep(700); p = await page.evaluate(() => window.__tb.state().phiDeg);
+      check(Math.abs(p + 25) < 0.3, '뒤로 45° → 브레이크 최대 -25° (게임 ' + p.toFixed(1) + '°)');
+      await lean(-20); await sleep(700); p = await page.evaluate(() => window.__tb.state().phiDeg);
+      check(p < -5 && p > -15, '뒤로 20° → 브레이크 ' + p.toFixed(1) + '°');
+      await page.screenshot({ path: shots + '/34_fp_lean.png' });
+      check(errs.length === 0, '페이지 오류 0' + (errs.length ? ': ' + errs.slice(0, 3).join(' | ') : ''));
+      await page.close();
+    }
+    // (b) 옆 시점: 핸들 돌리기 + 0° 맞추기
+    const { page, errs } = await mk(844, 390, { isMobile: true, hasTouch: true }, 'window.DeviceMotionEvent.requestPermission = () => Promise.resolve("granted"); try { if (!localStorage.getItem("tiltbike.set")) localStorage.setItem("tiltbike.set", JSON.stringify({ view: "side" })); } catch (e) {}');
     await page.goto(base + '/#test'); await sleep(300);
     await page.evaluate(() => { window.__g = { x: -9.5, y: 0.8, z: -2.0 }; window.__mv = setInterval(() => window.dispatchEvent(new DeviceMotionEvent('devicemotion', { accelerationIncludingGravity: window.__g })), 16); });
     await page.tap('#title'); await sleep(200); await page.tap('#bTilt'); await sleep(600);

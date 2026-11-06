@@ -4,6 +4,8 @@
   const DEG = Math.PI / 180;
   const PAGES_URL = 'https://khi3628-dev.github.io/tilt-bike/';
   const DEAD = 3, MAXD = 25;
+  const FP_DEAD = 4, FP_FWD_MAX = 90, FP_BACK_MAX = 45;   // 1인칭 앞뒤 숙이기: 앞 90°·뒤 45°에서 최대
+  const IOS = (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') || /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const $ = id => document.getElementById(id);
   const inFrame = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
   const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
@@ -28,7 +30,7 @@
     document.documentElement.lang = L.lang;
     document.title = T('title');
     $('titleH1').textContent = T('title'); $('tapToStart').textContent = T('tapToStart');
-    $('inTitle').textContent = T('title'); $('inLine1').innerHTML = T('introLine1'); $('inLine2').innerHTML = T('introLine2');
+    $('inTitle').textContent = T('title'); $('inLine1').innerHTML = T(SET.view === 'side' ? 'introLine1' : 'introFP1'); $('inLine2').innerHTML = T(SET.view === 'side' ? 'introLine2' : 'introFP2');
     $('bTilt').textContent = T('startTilt'); $('bTouch').textContent = T('startTouch');
     $('sfTitle').textContent = T('sensorFailTitle'); $('bRetryTilt').textContent = T('retry'); $('bUseTouch').textContent = T('useTouch');
     $('calTitle').textContent = T('calibTitle'); $('calText').innerHTML = T('calibText'); $('bCalibGo').textContent = T('calibGo');
@@ -70,8 +72,30 @@
       return SET.invert ? -a : a;
     },
     gameDeg(r) { const s = Math.sign(r), m = Math.abs(r); return s * Math.min(MAXD, Math.max(0, m - DEAD) * MAXD / (MAXD - DEAD)); },
+    // 1인칭: 0점 고정. 폰을 세워 화면이 나를 보면 0°, 앞으로 숙여 화면이 하늘을 보면 +90°
+    rawP: 0, smoothP: 0,
+    pitchDeg() {
+      const g = this.g;
+      if (!g || g.z == null) return 0;
+      const m = Math.hypot(g.x, g.y, g.z);
+      if (m < 3) return this.rawP;
+      let s = g.z / m;
+      if (IOS) s = -s;                       // iOS Safari는 중력 값 부호가 반대 (확인 필요 — 틀리면 '방향 반대로')
+      if (SET.invert) s = -s;
+      return Math.asin(Math.max(-1, Math.min(1, s))) / DEG;
+    },
+    pitchGame(p) {
+      const m = Math.abs(p), lim = p > 0 ? FP_FWD_MAX : FP_BACK_MAX;
+      if (m < FP_DEAD) return 0;
+      return Math.sign(p) * Math.min(MAXD, (m - FP_DEAD) * MAXD / (lim - FP_DEAD));
+    },
     update(dt) {
       if (this.testAngle != null) return this.testAngle;
+      if (this.mode === 'tilt' && SET.view !== 'side') {
+        this.rawP = this.pitchDeg();
+        this.smoothP += (this.rawP - this.smoothP) * (1 - Math.exp(-dt / 0.06));
+        return this.pitchGame(this.smoothP);
+      }
       if (this.mode === 'tilt') {
         this.raw = this.rawDeg();
         this.smooth += (this.raw - this.smooth) * (1 - Math.exp(-dt / 0.06));
@@ -102,6 +126,8 @@
     while (performance.now() - t0 < 1500 && Input.events === n0) await new Promise(r => setTimeout(r, 60));
     if (Input.events === n0) return sensorFail('silent');
     Input.mode = 'tilt'; SET.input = 'tilt'; saveSet();
+    Input.calibrate();                       // 옆 시점으로 바꿀 때를 위한 기준
+    if (SET.view !== 'side') { applyTexts(); openWorlds(); return; }
     show('ovCalib');
   }
   function sensorFail(why) {
@@ -820,6 +846,7 @@
       T('dZero') + ': ' + (Input.g0 ? Input.g0.x.toFixed(2) + ', ' + Input.g0.y.toFixed(2) : T('dNotSet')),
       T('dOri') + ': ' + ori + '°',
       T('dTilt') + ': ' + raw.toFixed(1) + '°  →  ' + T('dGame') + ': ' + Input.gameDeg(raw).toFixed(1) + '°',
+      T('dPitch') + ': ' + Input.pitchDeg().toFixed(1) + '°  →  ' + T('dGame') + ': ' + Input.pitchGame(Input.pitchDeg()).toFixed(1) + '° (' + T('viewFP') + ')',
       T('dDir') + ': ' + (SET.invert ? T('dInverted') : T('dNormal')) + ' · ' + T('inputLabel') + ': ' + (Input.mode === 'tilt' ? T('inputTilt') : Input.mode === 'touch' ? T('inputTouch') : Input.mode === 'keys' ? T('inputKeys') : '-')
     ];
   }
@@ -840,8 +867,8 @@
     const inputs = isTouchDevice ? [['tilt', T('inputTilt')], ['touch', T('inputTouch')]] : [['keys', T('inputKeys')]];
     seg('segInput', inputs, Input.mode, v => { if (v === 'tilt') enableTilt(); else { Input.mode = v; SET.input = v; saveSet(); applyTexts(); } });
     seg('segLang', [['ko', '한국어'], ['en', 'English']], L.lang, v => { L.set(v); SET.lang = v; saveSet(); applyTexts(); });
-    seg('segView', [['fp', T('viewFP')], ['side', T('viewSide')]], SET.view === 'side' ? 'side' : 'fp', v => { SET.view = v; saveSet(); });
-    $('bRecalib').style.display = Input.mode === 'tilt' ? '' : 'none';
+    seg('segView', [['fp', T('viewFP')], ['side', T('viewSide')]], SET.view === 'side' ? 'side' : 'fp', v => { SET.view = v; saveSet(); applyTexts(); });
+    $('bRecalib').style.display = Input.mode === 'tilt' && SET.view === 'side' ? '' : 'none';
     $('bDiag').style.display = isTouchDevice ? '' : 'none';
     $('bReset').textContent = resetArmed ? T('resetConfirm') : T('resetProgress');
     show('ovSettings');
@@ -925,7 +952,7 @@
   on('bPortraitOk', () => { allowPortrait = true; resize(); });
   on('bRestart', () => { if (sim && !demo) { A.SFX.click(); withAdMaybe(() => startStage(stageIdx)); } });
   on('bPause', () => { A.SFX.click(); pauseGame(); });
-  on('bView', () => { A.SFX.click(); SET.view = SET.view === 'side' ? 'fp' : 'side'; saveSet(); });
+  on('bView', () => { A.SFX.click(); SET.view = SET.view === 'side' ? 'fp' : 'side'; saveSet(); applyTexts(); });
   on('bResume', () => { A.SFX.click(); resumeGame(); });
   on('bPRestart', () => { A.SFX.click(); startStage(stageIdx); });
   on('bPList', () => { A.SFX.click(); openStages(worldOf(stageIdx)); });
