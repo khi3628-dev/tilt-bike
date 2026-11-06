@@ -264,13 +264,14 @@
   }
 
   // ---------- 점프 버튼 ----------
-  let jumpBtn = null;
+  let jumpBtn = null, jumpFn = null;
   function jumpButton(show, onJump) {
+    if (onJump) jumpFn = onJump;
     if (!jumpBtn) {
       jumpBtn = document.createElement('button');
       jumpBtn.textContent = '⤴'; jumpBtn.setAttribute('aria-label', 'jump');
       jumpBtn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(46px + env(safe-area-inset-bottom));width:86px;height:86px;border-radius:50%;border:3px solid rgba(255,255,255,.85);background:rgba(232,85,61,.75);color:#fff;font-size:40px;font-weight:800;z-index:6;touch-action:none;display:none;';
-      jumpBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); onJump(); });
+      jumpBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (jumpFn) jumpFn(); });
       document.body.appendChild(jumpBtn);
     }
     jumpBtn.style.display = show ? 'block' : 'none';

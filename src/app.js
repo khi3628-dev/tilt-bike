@@ -175,8 +175,8 @@
     stageIdx = i;
     fall = null;
     sim = new C.Sim(i);
-    if (LAB) { LAB.reset(sim); LAB.jumpButton(!demo && !!sim.def.jump && isTouchDevice, doJump); }
     playing = true; paused = false; endT = 0; demo = !!(opts && opts.demo);
+    if (LAB) { LAB.reset(sim); LAB.jumpButton(!demo && !!sim.def.jump && isTouchDevice, doJump); }
     const snap = sim.snapshot();
     view.x = snap.x + 2; view.y = snap.y + 1;
     if (!demo) {
@@ -193,7 +193,7 @@
       CG.gameplayStart();
     }
   }
-  function doJump() { if (sim && playing && !paused && sim.def.jump && !anyOverlay()) sim.jump(); }
+  function doJump() { if (sim && playing && !paused && sim.def.jump && !sim.rail && !anyOverlay()) sim.jump(); }   // 루프 레일 위에서는 점프 안 함
   function setHint(text, sec) { $('hint').textContent = text; $('hint').style.opacity = 1; hintTimer = sec; }
   function setToast(text, sec) { toastOn = !!text; if (text) $('toast').textContent = text; $('toast').style.opacity = text ? 1 : 0; if (text && sec) setTimeout(() => { if ($('toast').textContent === text) setToast(null); }, sec * 1000); }
   function vibrate(ms) { if (SET.vib && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { } } }

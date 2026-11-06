@@ -284,7 +284,7 @@
 
   // ===== [실험실] 효과 실험 코스 (게임 판과 별개, window.TILT_LAB일 때만 씀) =====
   const LAB = [];
-  const lab = (o) => { o.world = 0; o.lab = true; const t = o.t; o.loops = t.loops || []; o.blocks = t.blocks || []; return def(o); };
+  const lab = (o) => { o.world = 0; o.lab = true; o.jump = true; const t = o.t; o.loops = t.loops || []; o.blocks = t.blocks || []; return def(o); };
   LAB.push(() => {
     const t = new Terrain(0, 0);
     t.go(6, 0).go(10, -6, 3).mark('i0').go(30, -9, 3).go(12, 0, 4).mark('i1').go(30, 0, 3).mark('end');

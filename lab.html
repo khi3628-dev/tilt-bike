@@ -585,7 +585,7 @@
 
   // ===== [실험실] 효과 실험 코스 (게임 판과 별개, window.TILT_LAB일 때만 씀) =====
   const LAB = [];
-  const lab = (o) => { o.world = 0; o.lab = true; const t = o.t; o.loops = t.loops || []; o.blocks = t.blocks || []; return def(o); };
+  const lab = (o) => { o.world = 0; o.lab = true; o.jump = true; const t = o.t; o.loops = t.loops || []; o.blocks = t.blocks || []; return def(o); };
   LAB.push(() => {
     const t = new Terrain(0, 0);
     t.go(6, 0).go(10, -6, 3).mark('i0').go(30, -9, 3).go(12, 0, 4).mark('i1').go(30, 0, 3).mark('end');
@@ -1421,13 +1421,14 @@
   }
 
   // ---------- 점프 버튼 ----------
-  let jumpBtn = null;
+  let jumpBtn = null, jumpFn = null;
   function jumpButton(show, onJump) {
+    if (onJump) jumpFn = onJump;
     if (!jumpBtn) {
       jumpBtn = document.createElement('button');
       jumpBtn.textContent = '⤴'; jumpBtn.setAttribute('aria-label', 'jump');
       jumpBtn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(46px + env(safe-area-inset-bottom));width:86px;height:86px;border-radius:50%;border:3px solid rgba(255,255,255,.85);background:rgba(232,85,61,.75);color:#fff;font-size:40px;font-weight:800;z-index:6;touch-action:none;display:none;';
-      jumpBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); onJump(); });
+      jumpBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (jumpFn) jumpFn(); });
       document.body.appendChild(jumpBtn);
     }
     jumpBtn.style.display = show ? 'block' : 'none';
@@ -1616,8 +1617,8 @@
     stageIdx = i;
     fall = null;
     sim = new C.Sim(i);
-    if (LAB) { LAB.reset(sim); LAB.jumpButton(!demo && !!sim.def.jump && isTouchDevice, doJump); }
     playing = true; paused = false; endT = 0; demo = !!(opts && opts.demo);
+    if (LAB) { LAB.reset(sim); LAB.jumpButton(!demo && !!sim.def.jump && isTouchDevice, doJump); }
     const snap = sim.snapshot();
     view.x = snap.x + 2; view.y = snap.y + 1;
     if (!demo) {
@@ -1634,7 +1635,7 @@
       CG.gameplayStart();
     }
   }
-  function doJump() { if (sim && playing && !paused && sim.def.jump && !anyOverlay()) sim.jump(); }
+  function doJump() { if (sim && playing && !paused && sim.def.jump && !sim.rail && !anyOverlay()) sim.jump(); }   // 루프 레일 위에서는 점프 안 함
   function setHint(text, sec) { $('hint').textContent = text; $('hint').style.opacity = 1; hintTimer = sec; }
   function setToast(text, sec) { toastOn = !!text; if (text) $('toast').textContent = text; $('toast').style.opacity = text ? 1 : 0; if (text && sec) setTimeout(() => { if ($('toast').textContent === text) setToast(null); }, sec * 1000); }
   function vibrate(ms) { if (SET.vib && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { } } }
