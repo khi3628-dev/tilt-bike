@@ -10,6 +10,8 @@
   const R = 0.34;            // 바퀴 반지름
   const VT = 15;             // 최대 경사(25°) 평지에서의 끝 속도 목표 (공기 저항 계수 계산용)
   const CRR = 0.02;          // 구름 저항 (경사 약 1.1°에 해당)
+  const BRIDGE_HOLD = 0.32;  // 썩은 다리: 처음 밟은 뒤 이 시간부터 판자가 차례로 떨어짐
+  const BRIDGE_STEP = 0.07;
 
   // ---------- 지형 만들기 ----------
   function Terrain(x, y) {
@@ -34,20 +36,6 @@
     this.a = a1;
     return this;
   };
-  // 둔덕 n개 (폭 w, 높이 h), 평지 기준
-  Terrain.prototype.bumps = function (n, w, h) {
-    const cur = this.pieces[this.pieces.length - 1];
-    const base = this.y, x0 = this.x;
-    const m = Math.ceil(w / 0.25);
-    for (let k = 0; k < n; k++) {
-      for (let i = 1; i <= m; i++) {
-        const u = i / m;
-        cur.push([x0 + (k + u) * w, base + h * 0.5 * (1 - Math.cos(2 * Math.PI * u))]);
-      }
-    }
-    this.x = x0 + n * w; this.y = base; this.a = 0;
-    return this;
-  };
   // 솟은 턱: 오르막 up m로 h만큼 오르고, 윗면 top m, 내리막 down m (평지 기준)
   Terrain.prototype.kicker = function (h, up, top, down, blend) {
     blend = blend == null ? 0.5 : blend;
@@ -56,77 +44,208 @@
     this.go(Math.hypot(down, h), -Math.atan2(h, down) * 180 / Math.PI, blend);
     return this.go(0.6, 0, blend);
   };
-  // 틈: 지금 땅을 끝내고 len m 뒤, dy 아래(+면 위)에서 새 땅 시작
+  // 턱 n개가 있는 터널 바닥
+  Terrain.prototype.kickers = function (n) {
+    for (let i = 0; i < n; i++) this.kicker(0.5, 1.3, 0.5, 1.3).go(2.5, 0, 0.3);
+    return this;
+  };
+  // 틈: 지금 땅을 끝내고 len m 뒤, dy(+면 위)에서 새 땅 시작
   Terrain.prototype.gap = function (len, dy) {
     this.x += len; this.y += dy;
     this.pieces.push([[this.x, this.y]]);
+    this.a = 0;
+    return this;
+  };
+  // 수직 낭떠러지 (판 끝)
+  Terrain.prototype.cliff = function () {
+    this.pieces[this.pieces.length - 1].push([this.x + 0.01, this.y - 40]);
     return this;
   };
   Terrain.prototype.mark = function (name) { this.marks[name] = { x: this.x, y: this.y }; return this; };
 
-  // ---------- 판 5개 ----------
-  function stage1() {
-    const t = new Terrain(0, 0);
-    t.go(10, 0).mark('slope').go(26, -6, 4).go(40, 0, 4).mark('end');
-    return {
-      name: '첫 내리막', hint: '폰 오른쪽을 내리면 내리막이 돼요. 깃발까지 가 보세요.',
-      t, start: 3, finish: t.marks.end.x - 10, signs: [], ceil: []
-    };
+  // 바위 천장 (턱 구간 b~e 위, 높이 H)
+  function tunnelCeil(b, e, H) {
+    return [[b.x - 3, b.y + H + 2.5], [b.x - 1.2, b.y + H + 0.3], [b.x, b.y + H], [e.x, e.y + H], [e.x + 1.2, e.y + H + 0.3], [e.x + 3, e.y + H + 2.5]];
   }
-  function stage2() {
+
+  // ---------- 판 ----------
+  // 각 판: { id, world, name:{ko,en}, hint:{ko,en}, t, start, finish | stopZone, signs, ceil, gaps, bridges, gates, winds, cliffX, par }
+  const S = [];
+  function def(o) { o.signs = o.signs || []; o.ceil = o.ceil || []; o.gaps = o.gaps || []; o.bridges = o.bridges || []; o.gates = o.gates || []; o.winds = o.winds || []; return o; }
+
+  // === 세계 1: 언덕 마을 ===
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(10, 0).go(26, -6, 4).go(40, 0, 4).mark('end');
+    return def({ id: '1-1', world: 0, name: { ko: '첫 내리막', en: 'First Downhill' },
+      hint: { ko: '오른쪽으로 기울이면 길이 내리막이 돼요. 깃발까지 가 보세요.', en: 'Tilt right and the road tips downhill. Ride to the flag.' },
+      t, start: 3, finish: t.marks.end.x - 10 });
+  });
+  S.push(() => {
     const t = new Terrain(0, 0);
     t.go(8, 0).go(30, -12, 4).go(4, 0, 3).mark('hill').go(11, 33, 3).mark('top').go(26, 0, 5).mark('end');
-    return {
-      name: '높은 오르막', hint: '가파른 오르막은 기울기만으론 못 올라가요. 내리막에서 속도를 모아 오세요.',
-      t, start: 3, finish: t.marks.end.x - 8, signs: [], ceil: []
-    };
-  }
-  function stage3() {
+    return def({ id: '1-2', world: 0, name: { ko: '높은 오르막', en: 'Big Climb' },
+      hint: { ko: '가파른 오르막은 기울기만으론 못 올라가요. 내리막에서 속도를 모아 오세요.', en: 'Tilt alone will not climb a steep hill. Build speed on the way down.' },
+      t, start: 3, finish: t.marks.end.x - 8 });
+  });
+  S.push(() => {
     const t = new Terrain(0, 0);
     t.go(6, 0).go(26, -10, 4).go(9, 0, 3).mark('sign').go(4.5, 16, 2.5).mark('lip')
       .gap(7.5, -2.2).go(18, -12, 0).go(30, 0, 5).mark('end');
-    return {
-      name: '틈 점프', hint: '토끼 표지판: 빨리 와야 틈을 넘어요.',
+    return def({ id: '1-3', world: 0, name: { ko: '틈 점프', en: 'The Gap' },
+      hint: { ko: '토끼 표지판: 빨리 와야 틈을 넘어요.', en: 'Rabbit sign: come in fast to clear the gap.' },
       t, start: 3, finish: t.marks.end.x - 8,
-      signs: [{ x: t.marks.sign.x - 7, kind: 'rabbit' }], ceil: [], gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 7.5 }]
-    };
-  }
-  function stage4() {
+      signs: [{ x: t.marks.sign.x - 7, kind: 'rabbit' }], gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 7.5 }] });
+  });
+  S.push(() => {
     const t = new Terrain(0, 0);
-    t.go(6, 0).go(22, -14, 4).go(14, 0, 4).mark('bumps');
-    for (let i = 0; i < 3; i++) t.kicker(0.5, 1.3, 0.5, 1.3).go(2.5, 0, 0.3);
-    t.mark('bumpsEnd').go(18, 0, 0).mark('end');
-    const b = t.marks.bumps, e = t.marks.bumpsEnd;
-    const H = 2.6; // 천장 높이 (턱 바닥 기준)
-    const ceil = [[b.x - 3, b.y + H + 2.5], [b.x - 1.2, b.y + H + 0.3], [b.x, b.y + H], [e.x, e.y + H], [e.x + 1.2, e.y + H + 0.3], [e.x + 3, e.y + H + 2.5]];
-    return {
-      name: '둔덕 터널', hint: '거북이 표지판: 천천히! 빠르면 둔덕에서 튀어 바위에 머리를 박아요.',
+    t.go(6, 0).go(22, -14, 4).go(14, 0, 4).mark('bumps').kickers(3).mark('bumpsEnd').go(18, 0, 0).mark('end');
+    const b = t.marks.bumps, e = t.marks.bumpsEnd, H = 2.6;
+    return def({ id: '1-4', world: 0, name: { ko: '둔덕 터널', en: 'Bump Tunnel' },
+      hint: { ko: '거북이 표지판: 천천히! 빠르면 턱에서 튀어 바위에 머리를 박아요.', en: 'Turtle sign: slow down! Too fast and the bumps throw you into the rock.' },
       t, start: 3, finish: t.marks.end.x - 8,
-      signs: [{ x: b.x - 12, kind: 'turtle' }], ceil: [ceil], rockTop: b.y + H + 6
-    };
-  }
-  function stage5() {
+      signs: [{ x: b.x - 12, kind: 'turtle' }], ceil: [tunnelCeil(b, e, H)], rockTop: b.y + H + 6, tunnel: [b.x - 3, e.x + 3] });
+  });
+  S.push(() => {
     const t = new Terrain(0, 0);
-    t.go(6, 0).go(18, -10, 4).go(14, 0, 4).mark('bumps');
-    for (let i = 0; i < 2; i++) t.kicker(0.5, 1.3, 0.5, 1.3).go(2.5, 0, 0.3);
-    t.mark('bumpsEnd')
+    t.go(6, 0).go(18, -10, 4).go(14, 0, 4).mark('bumps').kickers(2).mark('bumpsEnd')
       .go(6, 0, 0).go(14, -9, 3).go(5, 0, 2).mark('kick').go(4.5, 16, 2.5).mark('lip')
-      .gap(6.5, -2.0).go(16, -12, 0).go(8, 0, 4).go(9, 6, 3).mark('plateau').go(16, 0, 3).mark('cliff');
-    const b = t.marks.bumps, e = t.marks.bumpsEnd;
-    const H = 2.6;
-    const ceil = [[b.x - 3, b.y + H + 2.5], [b.x - 1.2, b.y + H + 0.3], [b.x, b.y + H], [e.x, e.y + H], [e.x + 1.2, e.y + H + 0.3], [e.x + 3, e.y + H + 2.5]];
-    const p = t.marks.plateau;
-    // 낭떠러지: 고원 끝에서 아래로 뚝
-    t.pieces[t.pieces.length - 1].push([t.marks.cliff.x + 0.01, t.marks.cliff.y - 40]);
-    return {
-      name: '총정리', hint: '천천히 → 빨리 → 깃발 사이에서 멈추기. 반대로 기울이면 멈춰요.',
+      .gap(6.5, -2.0).go(16, -12, 0).go(8, 0, 4).go(9, 6, 3).mark('plateau').go(16, 0, 3).mark('cliff').cliff();
+    const b = t.marks.bumps, e = t.marks.bumpsEnd, H = 2.6, p = t.marks.plateau;
+    return def({ id: '1-5', world: 0, name: { ko: '정지선', en: 'Stop Line' },
+      hint: { ko: '천천히 → 빨리 → 깃발 사이에서 멈추기. 반대로 기울이면 멈춰요.', en: 'Slow, then fast, then stop between the flags. Tilt back to brake.' },
       t, start: 3, stopZone: { x0: p.x + 5, x1: p.x + 11 },
       signs: [{ x: b.x - 10, kind: 'turtle' }, { x: t.marks.kick.x - 14, kind: 'rabbit' }],
-      ceil: [ceil], rockTop: b.y + H + 6,
-      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 6.5 }], cliffX: t.marks.cliff.x
-    };
-  }
-  const STAGES = [stage1, stage2, stage3, stage4, stage5];
+      ceil: [tunnelCeil(b, e, H)], rockTop: b.y + H + 6, tunnel: [b.x - 3, e.x + 3],
+      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 6.5 }], cliffX: t.marks.cliff.x });
+  });
+
+  // === 세계 2: 협곡 ===
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(22, -10, 4).go(6, 0, 3).mark('sign').go(4.5, 16, 2.5).mark('lip1').gap(6.5, -2.0)
+      .go(14, -11, 0).go(6, 0, 3).go(4.5, 16, 2.5).mark('lip2').gap(8, -2.5).go(16, -12, 0).go(24, 0, 4).mark('end');
+    return def({ id: '2-1', world: 1, name: { ko: '두 번 점프', en: 'Double Jump' },
+      hint: { ko: '틈이 둘이에요. 착지한 뒤에도 계속 기울여 두 번째 틈까지 속도를 지키세요.', en: 'Two gaps. Keep tilting after you land so you still have speed for the second.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.sign.x - 7, kind: 'rabbit' }],
+      gaps: [{ x0: t.marks.lip1.x, x1: t.marks.lip1.x + 6.5 }, { x0: t.marks.lip2.x, x1: t.marks.lip2.x + 8 }] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(24, -9, 4).go(10, 0, 3).mark('sign').go(3, 0, 0).mark('b0').gap(9, 0).mark('b1').go(26, 0, 0).mark('end');
+    return def({ id: '2-2', world: 1, name: { ko: '썩은 다리', en: 'Rotten Bridge' },
+      hint: { ko: '다리는 밟으면 무너져요. 빨리 건너면 괜찮아요.', en: 'The bridge collapses once you are on it. Cross fast and you are fine.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.sign.x - 6, kind: 'rabbit' }],
+      bridges: [{ x0: t.marks.b0.x, x1: t.marks.b1.x, y: t.marks.b0.y }],
+      gaps: [{ x0: t.marks.b0.x, x1: t.marks.b1.x }] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(20, -12, 4).go(12, 0, 4).mark('bumps').kickers(4).mark('bumpsEnd')
+      .go(5, 0, 0).go(16, -12, 3).go(5, 0, 2).mark('kick').go(4.5, 16, 2.5).mark('lip').gap(7, -2.2).go(16, -12, 0).go(22, 0, 4).mark('end');
+    const b = t.marks.bumps, e = t.marks.bumpsEnd, H = 2.6;
+    return def({ id: '2-3', world: 1, name: { ko: '낮은 동굴', en: 'Low Cave' },
+      hint: { ko: '동굴은 천천히, 나오자마자 내리막에서 속도를 모아 틈을 넘어요.', en: 'Crawl through the cave, then build speed on the slope for the gap.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: b.x - 11, kind: 'turtle' }, { x: t.marks.kick.x - 13, kind: 'rabbit' }],
+      ceil: [tunnelCeil(b, e, H)], rockTop: b.y + H + 6, tunnel: [b.x - 3, e.x + 3],
+      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 7 }] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(12, -8, 4).go(6, 0, 3).mark('sign').go(14, -34, 2).mark('bottom').go(1.5, 0, 0.6).go(10, 0, 0).mark('bumps').kickers(2).mark('bumpsEnd').go(20, 0, 0).mark('end');
+    const b = t.marks.bumps, e = t.marks.bumpsEnd, H = 2.6;
+    return def({ id: '2-4', world: 1, name: { ko: '급경사', en: 'Steep Drop' },
+      hint: { ko: '급한 내리막 끝에 바로 낮은 바위예요. 내려가면서부터 반대로 기울여 속도를 줄이세요.', en: 'A steep drop runs straight into low rock. Start braking on the way down.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.sign.x - 5, kind: 'turtle' }],
+      ceil: [tunnelCeil(b, e, H)], rockTop: b.y + H + 6, tunnel: [b.x - 3, e.x + 3] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(18, -10, 4).go(6, 0, 3).mark('sign1').go(4.5, 16, 2.5).mark('lip').gap(7, -2.2).go(14, -12, 0).go(8, 0, 4)
+      .mark('b0').gap(9, 0).mark('b1').go(8, 0, 0).mark('sign2').go(8, 0, 0).mark('bumps').kickers(3).mark('bumpsEnd')
+      .go(6, 0, 0).go(10, 8, 3).mark('plateau').go(14, 0, 3).mark('cliff').cliff();
+    const b = t.marks.bumps, e = t.marks.bumpsEnd, H = 2.6, p = t.marks.plateau;
+    return def({ id: '2-5', world: 1, name: { ko: '협곡 횡단', en: 'Canyon Run' },
+      hint: { ko: '틈 → 다리 → 동굴 → 멈추기. 협곡의 모든 것.', en: 'Gap, bridge, cave, stop. Everything the canyon has.' },
+      t, start: 3, stopZone: { x0: p.x + 4, x1: p.x + 9.5 },
+      signs: [{ x: t.marks.sign1.x - 7, kind: 'rabbit' }, { x: t.marks.sign2.x - 1, kind: 'turtle' }],
+      ceil: [tunnelCeil(b, e, H)], rockTop: b.y + H + 6, tunnel: [b.x - 3, e.x + 3],
+      bridges: [{ x0: t.marks.b0.x, x1: t.marks.b1.x, y: t.marks.b0.y }],
+      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 7 }, { x0: t.marks.b0.x, x1: t.marks.b1.x }], cliffX: t.marks.cliff.x });
+  });
+
+  // === 세계 3: 폭풍 봉우리 ===
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(16, -8, 4).go(4, 0, 3).mark('w0').go(26, 0, 0).mark('w1').go(4, 0, 0).go(12, 20, 3).mark('top').go(20, 0, 4).mark('end');
+    return def({ id: '3-1', world: 2, name: { ko: '맞바람', en: 'Headwind' },
+      hint: { ko: '바람이 앞에서 불어요. 끝까지 기울여야 밀리지 않아요.', en: 'The wind blows against you. Tilt all the way or you will be pushed back.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.w0.x - 6, kind: 'wind', dir: -1 }],
+      winds: [{ x0: t.marks.w0.x, x1: t.marks.w1.x, f: -4.2 }] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(20, -10, 4).go(6, 0, 3).mark('z0').go(6, 0, 0).mark('gate').go(3, 0, 0).go(18, -12, 3).go(5, 0, 2).mark('kick').go(4.5, 16, 2.5).mark('lip').gap(6.5, -2.0).go(14, -12, 0).go(22, 0, 4).mark('end');
+    return def({ id: '3-2', world: 2, name: { ko: '검문소', en: 'Checkpoint' },
+      hint: { ko: '차단기 앞 노란 구역에서 완전히 멈추면 차단기가 열려요.', en: 'Come to a full stop in the yellow zone and the barrier lifts.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.z0.x - 7, kind: 'stop' }, { x: t.marks.kick.x - 12, kind: 'rabbit' }],
+      gates: [{ x: t.marks.gate.x, zone: { x0: t.marks.z0.x, x1: t.marks.gate.x - 0.6 } }],
+      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 6.5 }] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(14, -8, 4).go(4, 0, 3).mark('w0').go(22, 0, 0).mark('w1').go(6, 0, 0).mark('bumps').kickers(3).mark('bumpsEnd').go(18, 0, 0).mark('end');
+    const b = t.marks.bumps, e = t.marks.bumpsEnd, H = 2.6;
+    return def({ id: '3-3', world: 2, name: { ko: '뒷바람 터널', en: 'Tailwind Tunnel' },
+      hint: { ko: '뒷바람이 터널로 밀어 넣어요. 미리, 세게 반대로 기울이세요.', en: 'A tailwind shoves you toward the tunnel. Brake early and hard.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.w0.x - 5, kind: 'wind', dir: 1 }, { x: t.marks.w1.x - 2, kind: 'turtle' }],
+      winds: [{ x0: t.marks.w0.x, x1: t.marks.w1.x, f: 4.5 }],
+      ceil: [tunnelCeil(b, e, H)], rockTop: b.y + H + 6, tunnel: [b.x - 3, e.x + 3] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(16, -10, 4).go(5, 0, 3).mark('z0').go(6, 0, 0).mark('gate1').go(3, 0, 0).go(14, -11, 3).go(5, 0, 3).mark('sign')
+      .go(3, 0, 0).mark('b0').gap(9, 0).mark('b1').go(10, 0, 0).go(8, 14, 3).go(5, 0, 3).mark('z1').go(6, 0, 0).mark('gate2').go(3, 0, 0).go(14, -10, 3).go(18, 0, 4).mark('end');
+    return def({ id: '3-4', world: 2, name: { ko: '두 검문소', en: 'Two Checkpoints' },
+      hint: { ko: '멈추고, 달려서 다리를 건너고, 또 멈추세요.', en: 'Stop, sprint across the bridge, and stop again.' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.z0.x - 7, kind: 'stop' }, { x: t.marks.sign.x - 7, kind: 'rabbit' }, { x: t.marks.z1.x - 6, kind: 'stop' }],
+      gates: [{ x: t.marks.gate1.x, zone: { x0: t.marks.z0.x, x1: t.marks.gate1.x - 0.6 } }, { x: t.marks.gate2.x, zone: { x0: t.marks.z1.x, x1: t.marks.gate2.x - 0.6 } }],
+      bridges: [{ x0: t.marks.b0.x, x1: t.marks.b1.x, y: t.marks.b0.y }],
+      gaps: [{ x0: t.marks.b0.x, x1: t.marks.b1.x }] });
+  });
+  S.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(16, -10, 4).go(4, 0, 3).mark('w0').go(16, 0, 0).mark('w1').go(4, 0, 0).mark('bumps').kickers(2).mark('bumpsEnd')
+      .go(4, 0, 0).go(16, -12, 3).go(5, 0, 2).mark('kick').go(4.5, 16, 2.5).mark('lip').gap(7.5, -2.3).go(14, -12, 0).go(6, 0, 4)
+      .mark('b0').gap(9, 0).mark('b1').go(8, 0, 0).go(10, 18, 3).go(4, 0, 3).mark('z0').go(6, 0, 0).mark('gate').go(3, 0, 0).go(10, 10, 3).mark('plateau').go(14, 0, 3).mark('cliff').cliff();
+    const b = t.marks.bumps, e = t.marks.bumpsEnd, H = 2.6, p = t.marks.plateau;
+    return def({ id: '3-5', world: 2, name: { ko: '정상', en: 'Summit' },
+      hint: { ko: '뒷바람 터널, 틈, 다리, 검문소, 그리고 정상에서 멈추기.', en: 'Tailwind tunnel, gap, bridge, checkpoint, then stop at the summit.' },
+      t, start: 3, stopZone: { x0: p.x + 4, x1: p.x + 9.5 },
+      signs: [{ x: t.marks.w0.x - 5, kind: 'wind', dir: 1 }, { x: t.marks.w1.x - 1, kind: 'turtle' }, { x: t.marks.kick.x - 12, kind: 'rabbit' }, { x: t.marks.z0.x - 6, kind: 'stop' }],
+      winds: [{ x0: t.marks.w0.x, x1: t.marks.w1.x, f: 4.5 }],
+      ceil: [tunnelCeil(b, e, H)], rockTop: b.y + H + 6, tunnel: [b.x - 3, e.x + 3],
+      bridges: [{ x0: t.marks.b0.x, x1: t.marks.b1.x, y: t.marks.b0.y }],
+      gates: [{ x: t.marks.gate.x, zone: { x0: t.marks.z0.x, x1: t.marks.gate.x - 0.6 } }],
+      gaps: [{ x0: t.marks.lip.x, x1: t.marks.lip.x + 7.5 }, { x0: t.marks.b0.x, x1: t.marks.b1.x }], cliffX: t.marks.cliff.x });
+  });
+
+  const STAGES = S;
+  const WORLDS = [
+    { id: 'hills', name: { ko: '언덕 마을', en: 'Hillside' } },
+    { id: 'canyon', name: { ko: '협곡', en: 'Canyon' } },
+    { id: 'storm', name: { ko: '폭풍 봉우리', en: 'Storm Peak' } }
+  ];
+  // 기준 시간(초): test/par.js가 모범 운전으로 잰 시간 × 1.1 (3★ ≤ par, 2★ ≤ par × 1.4)
+  const PAR = [7, 8.5, 9, 14.5, 24, 10.5, 7.5, 21, 15.5, 21.5, 10, 16.5, 18, 23.5, 31.5];
 
   function groundYAt(pieces, x) {
     for (const pc of pieces) {
@@ -137,41 +256,65 @@
     }
     return null;
   }
+  function stars(index, time) {
+    const par = PAR[index] || 999;
+    return time <= par ? 3 : time <= par * 1.4 ? 2 : 1;
+  }
 
   // ---------- 시뮬레이션 ----------
   function Sim(stageIndex) {
     const def = STAGES[stageIndex]();
     this.def = def; this.index = stageIndex;
     const world = this.world = new planck.World({ gravity: Vec2(0, -G) });
-    // 땅
     let minY = Infinity;
     for (const pc of def.t.pieces) {
       if (pc.length < 2) continue;
-      const body = world.createBody();
-      body.createFixture(Chain(pc.map(p => Vec2(p[0], p[1])), false), { friction: 0.95, userData: 'ground' });
+      world.createBody().createFixture(Chain(pc.map(p => Vec2(p[0], p[1])), false), { friction: 0.95, userData: 'ground' });
       for (const p of pc) minY = Math.min(minY, p[1]);
     }
-    // 출발 뒤 벽
     const g0 = def.t.pieces[0][0];
     world.createBody().createFixture(Edge(Vec2(g0[0], g0[1]), Vec2(g0[0], g0[1] + 12)), { userData: 'wall' });
-    // 천장
-    for (const c of def.ceil) {
-      world.createBody().createFixture(Chain(c.map(p => Vec2(p[0], p[1])), false), { friction: 0.5, userData: 'ceil' });
-    }
+    for (const c of def.ceil) world.createBody().createFixture(Chain(c.map(p => Vec2(p[0], p[1])), false), { friction: 0.5, userData: 'ceil' });
+    // 썩은 다리: 1m 판자들
+    this.bridges = def.bridges.map(br => {
+      const n = Math.round(br.x1 - br.x0);
+      const w = (br.x1 - br.x0) / n;
+      const planks = [];
+      for (let i = 0; i < n; i++) {
+        const body = world.createBody({ position: Vec2(br.x0 + (i + 0.5) * w, br.y - 0.12) });
+        body.createFixture(Box(w / 2, 0.12), { density: 0.6, friction: 0.9, userData: 'plank' });
+        planks.push({ body, fallen: false, fallAt: null });
+      }
+      return { def: br, planks, touchedAt: null };
+    });
+    // 검문소 차단기
+    this.gates = def.gates.map(gt => {
+      const gy = groundYAt(def.t.pieces, gt.x);
+      const body = world.createBody();
+      body.createFixture(Edge(Vec2(gt.x, gy), Vec2(gt.x, gy + 3)), { userData: 'gate' });
+      return { def: gt, body, gy, open: false, holdTime: 0, lift: 0 };
+    });
     this.killY = minY - 6;
     this.makeBike(def.start);
     this.phi = 0; this.time = 0; this.acc = 0;
-    this.result = null;       // {ok:true} | {ok:false, kind}
+    this.result = null;
     this.crashKind = null;
     this.backTime = 0; this.stopTime = 0; this.upsideTime = 0;
     this.maxX = 0;
+    this.events = [];
+    this.wasGrounded = 2; this.airTime = 0;
+    this.windNow = 0;
     world.on('begin-contact', (c) => {
       const a = c.getFixtureA(), b = c.getFixtureB();
       const ua = a.getUserData(), ub = b.getUserData();
       const isRider = u => u === 'head' || u === 'torso';
-      const isWorld = u => u === 'ground' || u === 'ceil' || u === 'wall';
+      const isWorld = u => u === 'ground' || u === 'ceil' || u === 'wall' || u === 'gate' || u === 'plank';
       if (isRider(ua) && isWorld(ub)) this.crashKind = this.crashKind || ub;
       else if (isRider(ub) && isWorld(ua)) this.crashKind = this.crashKind || ua;
+      if (ua === 'plank' || ub === 'plank') {
+        const pb = (ua === 'plank' ? a : b).getBody();
+        for (const br of this.bridges) if (br.touchedAt == null && br.planks.some(p => p.body === pb)) { br.touchedAt = this.time; this.events.push({ t: 'bridge' }); }
+      }
     });
   }
 
@@ -208,13 +351,11 @@
     }
     return n;
   };
-
   Sim.prototype.speed = function () { return this.chassis.getLinearVelocity().length(); };
   Sim.prototype.vx = function () { return this.chassis.getLinearVelocity().x; };
   Sim.prototype.frontX = function () { return this.wheels[1].body.getPosition().x; };
   Sim.prototype.rearX = function () { return this.wheels[0].body.getPosition().x; };
 
-  // phi: 게임 기울기 (라디안, 이미 데드존·최대값 처리된 값)
   Sim.prototype.step = function (phi, dt) {
     if (this.result) return;
     phi = Math.max(-MAX_TILT, Math.min(MAX_TILT, phi));
@@ -231,16 +372,43 @@
     const ch = this.chassis;
     const v = ch.getLinearVelocity();
     const sp = v.length();
-    // 공기 저항
+    const p = ch.getPosition();
     if (sp > 0.01) ch.applyForceToCenter(Vec2(-this.kDrag * v.x * sp, -this.kDrag * v.y * sp), true);
-    // 구름 저항 (바퀴가 땅에 닿아 있을 때)
     const gnd = this.grounded();
     if (gnd > 0 && sp > 0.001) {
       const f = CRR * this.mass * G * Math.tanh(sp / 0.3) * (gnd / 2);
       ch.applyForceToCenter(Vec2(-f * v.x / sp, -f * v.y / sp), true);
     }
+    // 바람
+    this.windNow = 0;
+    for (const w of this.def.winds) if (p.x >= w.x0 && p.x <= w.x1) { this.windNow = w.f; ch.applyForceToCenter(Vec2(w.f * this.mass, 0), true); }
+    // 썩은 다리: 처음 밟은 뒤 판자가 차례로 떨어짐
+    for (const br of this.bridges) {
+      if (br.touchedAt == null) continue;
+      br.planks.forEach((pl, i) => {
+        if (!pl.fallen && this.time >= br.touchedAt + BRIDGE_HOLD + i * BRIDGE_STEP) {
+          pl.fallen = true; pl.fallAt = this.time;
+          pl.body.setDynamic(); pl.body.setAngularVelocity((i % 2 ? 1 : -1) * 2);
+        }
+      });
+    }
+    // 검문소: 구역 안에서 멈추면 열림
+    for (const gt of this.gates) {
+      if (gt.open) { gt.lift = Math.min(1, gt.lift + DT * 1.8); continue; }
+      const z = gt.def.zone;
+      const inZone = this.rearX() >= z.x0 && this.frontX() <= z.x1 && gnd === 2 && sp < 0.3;
+      gt.holdTime = inZone ? gt.holdTime + DT : 0;
+      if (gt.holdTime > 0.5) { gt.open = true; gt.body.setActive(false); this.events.push({ t: 'gate' }); }
+    }
     this.world.step(DT, 10, 4);
     this.time += DT;
+    // 공중/착지 이벤트
+    const g2 = this.grounded();
+    if (this.wasGrounded > 0 && g2 === 0) this.airTime = 0;
+    if (g2 === 0) this.airTime += DT;
+    if (this.wasGrounded === 0 && g2 > 0 && this.airTime > 0.25) this.events.push({ t: 'land', v: Math.abs(this.chassis.getLinearVelocity().y), air: this.airTime });
+    if (this.wasGrounded > 0 && g2 === 0 && this.chassis.getLinearVelocity().y > 2.5) this.events.push({ t: 'jump' });
+    this.wasGrounded = g2;
     this.checkEnd();
   };
 
@@ -248,39 +416,36 @@
     const def = this.def, ch = this.chassis;
     const p = ch.getPosition();
     this.maxX = Math.max(this.maxX, p.x);
-    // 실패 이유: 낭떠러지·틈 근처에서 일어난 일은 그쪽 이유로 묶음
     const cliff = def.cliffX != null && p.x > def.cliffX - 0.5;
-    const inGap = !!(def.gaps && def.gaps.some(g => p.x > g.x0 - 1.2 && p.x < g.x1 + 1.0 && p.y < groundYAt(def.t.pieces, g.x0 - 0.5) + 0.8));
+    const gapHere = def.gaps.find(g => p.x > g.x0 - 1.2 && p.x < g.x1 + 1.0);
+    const inGap = !!(gapHere && p.y < groundYAt(def.t.pieces, gapHere.x0 - 0.5) + 0.8);
+    const nearGate = this.gates.find(g => !g.open && Math.abs(p.x - g.def.x) < 1.6);
     const fail = (kind, extra) => {
-      const k = kind === 'ceil' ? 'ceil' : cliff ? 'cliff' : inGap ? 'gap' : kind;
-      this.result = Object.assign({ ok: false, kind: k, speed: this.speed() }, extra || {});
+      const k = kind === 'ceil' ? 'ceil' : cliff ? 'cliff' : inGap ? 'gap' : (kind === 'gate' || nearGate) ? 'gate' : kind;
+      this.result = Object.assign({ ok: false, kind: k, speed: this.speed(), x: p.x, y: p.y }, extra || {});
+      this.events.push({ t: 'crash', kind: k });
     };
-    if (this.crashKind) { fail(this.crashKind === 'ceil' ? 'ceil' : 'crash'); return; }
-    if (p.y < this.killY || (inGap && p.y < groundYAt(def.t.pieces, def.gaps.find(g => p.x > g.x0 - 1.2 && p.x < g.x1 + 1.0).x0 - 0.5) - 3)) { fail(cliff ? 'cliff' : 'gap'); return; }
-    // 뒤집힘
+    if (this.crashKind) { fail(this.crashKind === 'ceil' ? 'ceil' : this.crashKind === 'gate' ? 'gate' : 'crash'); return; }
+    if (p.y < this.killY || (inGap && p.y < groundYAt(def.t.pieces, gapHere.x0 - 0.5) - 3)) { fail(cliff ? 'cliff' : 'gap'); return; }
     let a = ch.getAngle() % (2 * Math.PI);
     if (a > Math.PI) a -= 2 * Math.PI; if (a < -Math.PI) a += 2 * Math.PI;
     this.upsideTime = Math.abs(a) > 2.0 ? this.upsideTime + DT : 0;
     if (this.upsideTime > 0.4) { fail('crash'); return; }
-    // 바퀴가 땅에 닿은 채로 몸이 땅에 비해 45° 넘게 숙거나 젖혀지면 고꾸라짐
     const ya = groundYAt(def.t.pieces, p.x - 0.5), yb = groundYAt(def.t.pieces, p.x + 0.5);
-    if (ya != null && yb != null && this.grounded() > 0) {
+    if (ya != null && yb != null && this.grounded() > 0 && !gapHere) {
       const rel = a - Math.atan2(yb - ya, 1);
       if (Math.abs(rel) > 45 * Math.PI / 180) { fail('crash', { pitch: rel }); return; }
     }
-    // 성공
-    if (def.finish != null && this.frontX() >= def.finish) { this.result = { ok: true }; return; }
+    if (def.finish != null && this.frontX() >= def.finish) { this.result = { ok: true, time: this.time }; this.events.push({ t: 'finish' }); return; }
     if (def.stopZone) {
       const z = def.stopZone;
       const inZone = this.rearX() >= z.x0 && this.frontX() <= z.x1 && this.grounded() === 2;
       this.stopTime = inZone && this.speed() < 0.3 ? this.stopTime + DT : 0;
-      if (this.stopTime > 0.6) { this.result = { ok: true }; return; }
+      if (this.stopTime > 0.6) { this.result = { ok: true, time: this.time - 0.6 }; this.events.push({ t: 'finish' }); return; }
     }
-    // 뒤로 밀림 (힌트용, 실패 아님)
     this.backTime = this.vx() < -0.4 ? this.backTime + DT : 0;
   };
 
-  // 끝난 뒤 넘어지는 모습만 이어서 보여 줄 때 (판정 없음)
   Sim.prototype.stepFree = function (dt) {
     this.acc += Math.min(dt, 0.1);
     while (this.acc >= DT) { this.acc -= DT; this.world.step(DT, 10, 4); }
@@ -292,11 +457,13 @@
     return {
       x: p.x, y: p.y, angle: ch.getAngle(),
       wheels: this.wheels.map(w => { const q = w.body.getPosition(); return { x: q.x, y: q.y, angle: w.body.getAngle() }; }),
-      speed: this.speed(), vx: this.vx(), grounded: this.grounded(), time: this.time
+      speed: this.speed(), vx: this.vx(), grounded: this.grounded(), time: this.time, wind: this.windNow,
+      gates: this.gates.map(g => g.open)
     };
   };
+  Sim.prototype.drainEvents = function () { const e = this.events; this.events = []; return e; };
 
-  const api = { Sim, STAGES, G, MAX_TILT, R, groundYAt, stageCount: STAGES.length };
+  const api = { Sim, STAGES, WORLDS, PAR, stars, G, MAX_TILT, R, groundYAt, stageCount: STAGES.length };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TiltCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -3,146 +3,193 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>기울기 자전거</title>
+<title>Tilt Bike</title>
+<!--CGSDK-->
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0f1d2b; touch-action: none;
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0f1d2b; touch-action: none; overscroll-behavior: none;
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
-    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #fff; }
-  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", Roboto, sans-serif; color: #fff; }
+  canvas#cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   .hud { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left));
-    right: calc(10px + env(safe-area-inset-right)); display: flex; justify-content: space-between; align-items: center;
+    right: calc(10px + env(safe-area-inset-right)); display: none; justify-content: space-between; align-items: center;
     pointer-events: none; z-index: 5; }
-  .hud .label { background: rgba(15,29,43,.55); padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 700; }
+  .hud .label { background: rgba(15,29,43,.55); padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .hud .timer { background: rgba(15,29,43,.55); padding: 6px 14px; border-radius: 999px; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 86px; text-align: center; }
   .hud .btns { display: flex; gap: 8px; pointer-events: auto; }
   .round { width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(15,29,43,.6); color: #fff;
     font-size: 20px; display: grid; place-items: center; touch-action: manipulation; cursor: pointer; }
-  .hint { position: fixed; left: 50%; top: calc(58px + env(safe-area-inset-top)); transform: translateX(-50%);
-    background: rgba(15,29,43,.7); padding: 8px 16px; border-radius: 12px; font-size: 15px; max-width: 80vw; text-align: center;
-    transition: opacity .6s; pointer-events: none; z-index: 5; line-height: 1.4; }
+  .hint { position: fixed; left: 50%; top: calc(60px + env(safe-area-inset-top)); transform: translateX(-50%);
+    background: rgba(15,29,43,.72); padding: 8px 16px; border-radius: 12px; font-size: 15px; max-width: 78vw; text-align: center;
+    transition: opacity .6s; pointer-events: none; z-index: 5; line-height: 1.4; opacity: 0; }
   .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: rgba(201,72,52,.92); padding: 8px 16px; border-radius: 12px; font-size: 15px; transition: opacity .4s;
-    pointer-events: none; z-index: 5; white-space: nowrap; }
+    pointer-events: none; z-index: 30; white-space: nowrap; opacity: 0; }
   .touchhint { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 0; right: 0; display: flex;
-    justify-content: space-between; padding: 0 calc(16px + env(safe-area-inset-left)); pointer-events: none; z-index: 4;
-    font-size: 13px; color: rgba(255,255,255,.85); text-shadow: 0 1px 3px rgba(0,0,0,.6); transition: opacity .8s; }
+    justify-content: space-between; padding: 0 calc(16px + env(safe-area-inset-left)) 0 calc(16px + env(safe-area-inset-right)); pointer-events: none; z-index: 4;
+    font-size: 13px; color: rgba(255,255,255,.85); text-shadow: 0 1px 3px rgba(0,0,0,.6); transition: opacity .8s; opacity: 0; }
   .ov { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10;
-    background: rgba(10,20,32,.72); padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+    background: rgba(10,20,32,.72); padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left)); }
   .ov.show { display: flex; }
-  .card { background: #fffdf7; color: #1d2a36; border-radius: 18px; padding: 18px 22px; max-width: 560px; width: 100%;
-    max-height: 100%; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,.35); text-align: center; touch-action: pan-y; }
-  .card h1 { margin: 0 0 6px; font-size: 26px; }
-  .card h2 { margin: 0 0 6px; font-size: 22px; }
+  .ov.clear { background: transparent; }
+  .card { background: #fffdf7; color: #1d2a36; border-radius: 18px; padding: 16px 20px; max-width: 580px; width: 100%;
+    max-height: 100%; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,.35); text-align: center; touch-action: pan-y; position: relative; }
+  .card h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.5px; }
+  .card h2 { margin: 0 0 6px; font-size: 21px; }
   .card p { margin: 6px 0; font-size: 15px; line-height: 1.5; color: #3a4a58; }
   .card .small { font-size: 13px; color: #6b7a87; }
   .btn { border: 0; border-radius: 12px; padding: 12px 18px; font-size: 16px; font-weight: 700; margin: 6px 4px 0;
-    background: #2b6cb0; color: #fff; cursor: pointer; touch-action: manipulation; }
+    background: #2b6cb0; color: #fff; cursor: pointer; touch-action: manipulation; font-family: inherit; }
   .btn.sub { background: #e3e9ef; color: #1d2a36; }
   .btn.ok { background: #2f9e57; }
-  .stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0 6px; }
-  .stage { border: 0; border-radius: 12px; padding: 10px 4px; background: #e8f1f8; color: #1d2a36; font-size: 14px;
-    font-weight: 700; cursor: pointer; touch-action: manipulation; line-height: 1.3; }
-  .stage .n { font-size: 22px; display: block; }
-  .stage.done { background: #d5f0dc; }
-  .row { display: flex; flex-wrap: wrap; justify-content: center; }
+  .btn.warn { background: #c94834; }
+  .btn:disabled { opacity: .45; }
+  .row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 12px 0 6px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 6px; }
+  .tile { border: 0; border-radius: 12px; padding: 10px 4px; background: #e8f1f8; color: #1d2a36; font-size: 13px;
+    font-weight: 700; cursor: pointer; touch-action: manipulation; line-height: 1.3; font-family: inherit; position: relative; }
+  .tile .n { font-size: 22px; display: block; }
+  .tile .stars { display: block; font-size: 12px; color: #e0a500; letter-spacing: 1px; min-height: 15px; }
+  .tile.done { background: #d5f0dc; }
+  .tile.locked { background: #eef0f2; color: #9aa6b1; }
+  .tile.world { padding: 14px 6px; }
+  .tile.world .n { font-size: 30px; }
+  .tile.world .wn { font-size: 15px; }
+  .tile.world .ws { color: #e0a500; font-size: 13px; }
+  .topline { display: flex; justify-content: space-between; align-items: center; }
+  .topline h2 { margin: 0; }
+  .link { background: none; border: 0; color: #2b6cb0; font-weight: 700; font-size: 15px; cursor: pointer; padding: 6px 8px; font-family: inherit; }
   .diag { text-align: left; font: 13px/1.55 ui-monospace, Menlo, monospace; background: #f1f4f7; border-radius: 10px;
     padding: 10px 12px; margin: 8px 0; white-space: pre-wrap; color: #1d2a36; }
   .warn { color: #b0402c; font-weight: 700; }
   a { color: #2b6cb0; word-break: break-all; }
   .big { font-size: 44px; line-height: 1; margin-bottom: 4px; }
+  .setrow { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; border-bottom: 1px solid #edf0f3; font-size: 15px; }
+  .setrow .seg { display: flex; gap: 4px; }
+  .seg button { border: 1px solid #c9d3dc; background: #fff; color: #1d2a36; border-radius: 8px; padding: 6px 10px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .seg button.on { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+  .starbig { font-size: 40px; letter-spacing: 4px; color: #d8d8d8; margin: 2px 0 4px; }
+  .starbig .lit { color: #f5b400; text-shadow: 0 2px 6px rgba(245,180,0,.45); }
+  .res { display: flex; justify-content: center; gap: 18px; font-size: 15px; color: #3a4a58; }
+  .res b { color: #1d2a36; }
+  .cover { position: fixed; inset: 0; background: #0f1d2b; z-index: 50; display: none; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; }
+  .cover.show { display: flex; }
+  #title { position: fixed; inset: 0; display: none; align-items: flex-end; justify-content: center; z-index: 10;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  #title.show { display: flex; }
+  #title .tcard { background: rgba(15,29,43,.72); border-radius: 18px; padding: 14px 22px; text-align: center; max-width: 520px; backdrop-filter: blur(4px); }
+  #title h1 { margin: 0; font-size: 40px; letter-spacing: -1px; text-shadow: 0 3px 10px rgba(0,0,0,.5); }
+  #title .tap { margin-top: 8px; font-size: 16px; opacity: .9; animation: blink 1.6s infinite; }
+  #title .tbtns { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); display: flex; gap: 8px; }
+  @keyframes blink { 0%, 100% { opacity: .95 } 50% { opacity: .4 } }
+  #stageLabel .w { opacity: .7; font-weight: 600; }
 </style>
 </head>
 <body>
 <canvas id="cv"></canvas>
+<div class="cover show" id="cover">Loading…</div>
 
-<div class="hud" id="hud" style="display:none">
+<div id="title">
+  <div class="tbtns"><button class="round" id="bLang" aria-label="language">A</button><button class="round" id="bTitleSet" aria-label="settings">⚙</button></div>
+  <div class="tcard"><h1 id="titleH1">Tilt Bike</h1><div class="tap" id="tapToStart">Tap to start</div></div>
+</div>
+
+<div class="hud" id="hud">
   <div class="label" id="stageLabel"></div>
+  <div class="timer" id="timer">0.0</div>
   <div class="btns">
-    <button class="round" id="bRestart" aria-label="다시">↻</button>
-    <button class="round" id="bMenu" aria-label="목록">☰</button>
+    <button class="round" id="bRestart" aria-label="restart">↻</button>
+    <button class="round" id="bPause" aria-label="pause">‖</button>
   </div>
 </div>
-<div class="hint" id="hint" style="opacity:0"></div>
-<div class="toast" id="toast" style="opacity:0"></div>
-<div class="touchhint" id="touchhint" style="opacity:0"><span>◀ 왼쪽 누르기 = 오르막(멈춤)</span><span>오른쪽 누르기 = 내리막 ▶</span></div>
+<div class="hint" id="hint"></div>
+<div class="toast" id="toast"></div>
+<div class="touchhint" id="touchhint"><span id="thL"></span><span id="thR"></span></div>
 
-<!-- 시작 -->
-<div class="ov show" id="ovTitle"><div class="card">
+<div class="ov" id="ovInput"><div class="card">
   <div class="big">🚲</div>
-  <h1>기울기 자전거</h1>
-  <p>폰을 <b>가로로</b> 들고 핸들처럼 돌리세요.<br>오른쪽을 내리면 길이 <b>내리막</b>이 되어 빨라지고, 반대로 돌리면 멈춰요.</p>
-  <div class="row">
-    <button class="btn" id="bTilt">기울기로 시작</button>
-    <button class="btn sub" id="bTouch">화면 누르기로 시작</button>
+  <h1 id="inTitle"></h1>
+  <p id="inLine1"></p><p id="inLine2"></p>
+  <div class="row" id="inBtns">
+    <button class="btn" id="bTilt"></button>
+    <button class="btn sub" id="bTouch"></button>
   </div>
-  <p class="small" id="titleNote"></p>
+  <p class="small" id="inNote"></p>
 </div></div>
 
-<!-- 센서 실패 -->
 <div class="ov" id="ovSensorFail"><div class="card">
-  <h2>기울기 센서를 못 읽었어요</h2>
+  <h2 id="sfTitle"></h2>
   <p id="failWhy"></p>
   <div class="diag" id="failDiag"></div>
-  <div class="row">
-    <button class="btn" id="bRetryTilt">다시 시도</button>
-    <button class="btn sub" id="bUseTouch">화면 누르기로 하기</button>
-  </div>
+  <div class="row"><button class="btn" id="bRetryTilt"></button><button class="btn sub" id="bUseTouch"></button></div>
 </div></div>
 
-<!-- 0° 맞추기 -->
 <div class="ov" id="ovCalib"><div class="card">
   <div class="big">📱↔️</div>
-  <h2>편하게 가로로 잡고 화면을 누르세요</h2>
-  <p>지금 잡은 각도를 <b>0°(평지)</b>로 잡아요.<br>거기서 오른쪽을 내리면 내리막, 올리면 오르막이에요.</p>
-  <button class="btn" id="bCalibGo">여기를 0°로</button>
+  <h2 id="calTitle"></h2>
+  <p id="calText"></p>
+  <button class="btn" id="bCalibGo"></button>
 </div></div>
 
-<!-- 목록 -->
-<div class="ov" id="ovMenu"><div class="card">
-  <h2>판 고르기</h2>
-  <div class="stages" id="stageList"></div>
-  <div class="row">
-    <button class="btn sub" id="bRecalib">0° 다시 맞추기</button>
-    <button class="btn sub" id="bDiag">센서 점검</button>
-    <button class="btn sub" id="bSwitch"></button>
-  </div>
-  <p class="small" id="menuNote"></p>
+<div class="ov" id="ovWorlds"><div class="card">
+  <div class="topline"><button class="link" id="bWorldsBack"></button><h2 id="worldsTitle"></h2><span class="small" id="worldsStars"></span></div>
+  <div class="grid3" id="worldList"></div>
+  <div class="row"><button class="btn sub" id="bWorldsSet"></button></div>
 </div></div>
 
-<!-- 결과 -->
+<div class="ov" id="ovStages"><div class="card">
+  <div class="topline"><button class="link" id="bStagesBack"></button><h2 id="stagesTitle"></h2><span class="small" id="stagesStars"></span></div>
+  <div class="grid5" id="stageList"></div>
+  <p class="small" id="stagesNote"></p>
+</div></div>
+
+<div class="ov" id="ovPause"><div class="card">
+  <h2 id="pauseTitle"></h2>
+  <div class="row"><button class="btn ok" id="bResume"></button><button class="btn" id="bPRestart"></button><button class="btn sub" id="bPList"></button></div>
+  <div class="row"><button class="btn sub" id="bPSet"></button></div>
+</div></div>
+
 <div class="ov" id="ovResult"><div class="card">
   <div class="big" id="resIcon"></div>
   <h2 id="resTitle"></h2>
+  <div class="starbig" id="resStars"></div>
+  <div class="res" id="resNums"></div>
   <p id="resText"></p>
-  <div class="row">
-    <button class="btn ok" id="bNext">다음 판 ▶</button>
-    <button class="btn" id="bAgain">다시</button>
-    <button class="btn sub" id="bList">목록</button>
-  </div>
+  <div class="row"><button class="btn ok" id="bNext"></button><button class="btn" id="bAgain"></button><button class="btn sub" id="bList"></button></div>
 </div></div>
 
-<!-- 센서 점검 -->
+<div class="ov" id="ovSettings"><div class="card">
+  <div class="topline"><button class="link" id="bSetBack"></button><h2 id="setTitle"></h2><span></span></div>
+  <div class="setrow"><span id="lblSound"></span><div class="seg" id="segSound"></div></div>
+  <div class="setrow"><span id="lblMusic"></span><div class="seg" id="segMusic"></div></div>
+  <div class="setrow"><span id="lblVib"></span><div class="seg" id="segVib"></div></div>
+  <div class="setrow"><span id="lblInput"></span><div class="seg" id="segInput"></div></div>
+  <div class="setrow"><span id="lblLang"></span><div class="seg" id="segLang"></div></div>
+  <div class="row"><button class="btn sub" id="bRecalib"></button><button class="btn sub" id="bDiag"></button><button class="btn warn" id="bReset"></button></div>
+</div></div>
+
 <div class="ov" id="ovDiag"><div class="card">
-  <h2>센서 점검</h2>
-  <p class="small">폰 오른쪽을 내렸을 때 "게임 각도"가 <b>+</b>로 커지면 정상이에요.</p>
+  <h2 id="diagTitle"></h2>
+  <p class="small" id="diagHelp"></p>
   <div class="diag" id="diagText"></div>
-  <div class="row">
-    <button class="btn sub" id="bDiagCalib">0° 다시 맞추기</button>
-    <button class="btn sub" id="bInvert"></button>
-    <button class="btn" id="bDiagClose">닫기</button>
-  </div>
+  <div class="row"><button class="btn sub" id="bDiagCalib"></button><button class="btn sub" id="bInvert"></button><button class="btn" id="bDiagClose"></button></div>
 </div></div>
 
-<!-- 가로로 -->
 <div class="ov" id="ovPortrait" style="z-index:20"><div class="card">
   <div class="big">📱↻</div>
-  <h2>폰을 가로로 돌려 주세요</h2>
-  <p>화면이 안 돌아가면 제어 센터에서 <b>화면 방향 잠금</b>을 꺼 주세요.</p>
-  <button class="btn sub" id="bPortraitOk">세로로 그냥 하기</button>
+  <h2 id="rotTitle"></h2>
+  <p id="rotText"></p>
+  <button class="btn sub" id="bPortraitOk"></button>
 </div></div>
 
+<div class="cover" id="adCover"><span id="adText">Advertisement…</span></div>
+
 <script>/*PLANCK*/</script>
+<script>/*I18N*/</script>
 <script>/*CORE*/</script>
+<script>/*AUDIO*/</script>
+<script>/*CG*/</script>
 <script>/*APP*/</script>
 </body>
 </html>
