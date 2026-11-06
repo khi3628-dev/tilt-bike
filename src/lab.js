@@ -15,7 +15,35 @@
   const ROAD = { ice: ['#cfeefc', '#b4e0f4'], rock: ['#8e8984', '#7d7873'], mud: ['#5e3d23', '#52341e'], wet: ['#434b58', '#4a5361'] };
   const SIDE = { ice: ['#bfe8fb', '#ffffff'], rock: ['#86807a', '#5f5a55'], mud: ['#5a3920', '#7a5233'], wet: ['#3d4552', '#9fb3c8'] };
 
-  function reset(sim) { parts.length = 0; lens.length = 0; spray.length = 0; ripples.length = 0; lastSim = sim; shake = 0; }
+  function reset(sim) { parts.length = 0; lens.length = 0; spray.length = 0; ripples.length = 0; lastSim = sim; shake = 0; pops.length = 0; health = 100; }
+
+  // ---------- 착지 판정 글씨 + 자전거 상태(데미지 미리보기, 이 판에서만) ----------
+  const pops = []; let health = 100;
+  const GRADE = { perfect: { ko: '완벽 착지!', en: 'Perfect landing!', col: '#ffd43b' }, good: { ko: '괜찮은 착지', en: 'Good landing', col: '#b9f3c4' }, bad: { ko: '나쁜 착지…', en: 'Bad landing…', col: '#ff9b8a' } };
+  function onLand(ev, lang) {
+    if (!ev.grade) return;
+    const g = GRADE[ev.grade];
+    if (ev.grade === 'bad') health = Math.max(0, health - Math.round(10 + (ev.rel - 20) * 0.8));
+    else if (ev.grade === 'good') health = Math.max(0, health - 3);
+    pops.push({ text: g[lang === 'ko' ? 'ko' : 'en'] + (ev.grade === 'perfect' ? ' +💨' : ''), col: g.col, t: 0 });
+  }
+  function popsFx(g) {
+    const { ctx, W, H, dt, sim } = g;
+    for (let i = pops.length - 1; i >= 0; i--) {
+      const p = pops[i]; p.t += dt; if (p.t > 1.3) { pops.splice(i, 1); continue; }
+      const k = Math.min(1, p.t / 0.12), a = Math.min(1, (1.3 - p.t) / 0.4), y = H * 0.32 - p.t * 30;
+      ctx.save(); ctx.globalAlpha = a; ctx.font = 'bold ' + Math.round(26 + 8 * (1 - k)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(15,29,43,.8)'; ctx.strokeText(p.text, W / 2, y); ctx.fillStyle = p.col; ctx.fillText(p.text, W / 2, y); ctx.restore();
+    }
+    if (sim.landings || health < 100) {   // 자전거 상태 막대 (왼쪽 위, 판 이름 아래)
+      const x = 12, y = 92, w = 130, h = 14;
+      ctx.fillStyle = 'rgba(15,29,43,.55)'; ctx.fillRect(x, y - 3, w + 70, h + 6);
+      ctx.fillStyle = '#2a3a4c'; ctx.fillRect(x + 26, y, w, h);
+      ctx.fillStyle = health > 60 ? '#5ad17a' : health > 30 ? '#ffc43b' : '#ff6b5a'; ctx.fillRect(x + 26, y, w * health / 100, h);
+      ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+      ctx.fillText('🔧', x + 4, y + h / 2 + 1); ctx.fillText(health + '%', x + 30 + w, y + h / 2 + 1);
+    }
+  }
 
   // ---------- 매 프레임: 상태와 입자 ----------
   function update(sim, dt, fp) {
@@ -193,6 +221,7 @@
       ctx.globalAlpha = 1;
     }
     windGauge(g);
+    popsFx(g);
   }
   // 1인칭 렌즈 (손보다 위)
   function lensFx(g) {
@@ -278,7 +307,7 @@
   }
 
   root.Lab = {
-    update, reset, sideTerrain, sideParticles, screen, lensFx, fpRoad, fogBegin, fogAt, fpItems, jumpButton,
+    update, reset, onLand, sideTerrain, sideParticles, screen, lensFx, fpRoad, fogBegin, fogAt, fpItems, jumpButton,
     get shake() { return shake; }, get surf() { return surfNow; }, get rain() { return rainLevel; }, get speed() { return speedNow; }
   };
 })(window);

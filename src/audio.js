@@ -60,6 +60,12 @@
     finish() { if (!ensure()) return; const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.22, t + i * 0.09)); tone(1319, 0.5, 'triangle', 0.2, t + 0.4); },
     star(i) { if (!ensure()) return; tone(880 * Math.pow(1.25, i), 0.16, 'triangle', 0.2, ctx.currentTime); },
     fail() { if (!ensure()) return; const t = ctx.currentTime; tone(330, 0.25, 'square', 0.12, t, 250); tone(220, 0.4, 'square', 0.12, t + 0.22, 150); },
+    grade(g) {   // [실험실] 착지 판정 소리
+      if (!ensure()) return; const t = ctx.currentTime;
+      if (g === 'perfect') { [784, 988, 1319].forEach((f, i) => tone(f, 0.16, 'triangle', 0.16, t + i * 0.05)); }
+      else if (g === 'good') tone(660, 0.12, 'triangle', 0.1, t);
+      else { burst(0.25, 0.9, t, 1500, 'bandpass'); tone(160, 0.2, 'sawtooth', 0.15, t, 70); }
+    },
     whoosh() { if (!ensure()) return; burst(0.4, 0.4, ctx.currentTime, 1500, 'bandpass'); },
     fall() {   // 떨어지는 바람 소리 + 낮아지는 휘파람
       if (!ensure()) return; const t = ctx.currentTime;

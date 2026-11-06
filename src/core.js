@@ -9,6 +9,7 @@
   const MAX_TILT = 25 * Math.PI / 180;
   const R = 0.34;            // 바퀴 반지름
   const VT = 15;             // 최대 경사(25°) 평지에서의 끝 속도 목표 (공기 저항 계수 계산용)
+  const AIR_W = 3.2;          // [실험실] 공중 자세 조작 최대 회전 속도 (rad/s)
   const CRR = 0.02;          // 구름 저항 (경사 약 1.1°에 해당)
   const BRIDGE_HOLD = 0.32;  // 썩은 다리: 처음 밟은 뒤 이 시간부터 판자가 차례로 떨어짐
   const BRIDGE_STEP = 0.07;
@@ -351,6 +352,16 @@
       t, start: 3, finish: t.marks.end.x - 8, signs: [{ x: t.marks.loop.x - 10, kind: 'rabbit' }] });
   });
 
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(18, -10, 3).go(6, 0, 3).mark('k1').go(4.5, 18, 2.5).mark('lip1').gap(7, -3).mark('land1').go(14, -36, 1).go(10, 0, 8)
+      .go(10, -8, 3).go(6, 0, 2).mark('lip2').gap(4, -5).mark('land2').go(16, -26, 1).go(8, 0, 8)
+      .go(12, -10, 3).go(5, 0, 2).mark('k3').go(4, 22, 2).mark('lip3').gap(6, -1).mark('land3').go(10, -2, 0).go(6, 0, 3).go(24, 0, 3).mark('end');
+    return lab({ id: 'L10', theme: 0, icon: '🛬', name: { ko: '착지 연습', en: 'Landing Practice' }, hint: { ko: '공중에서 더 숙이면 앞이 내려가고, 젖히면 들려요. 바퀴를 땅 경사에 맞추면 완벽 착지!', en: 'In the air: lean further to drop the nose, lean back to lift it. Match the slope for a perfect landing!' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.k1.x - 6, kind: 'rabbit' }, { x: t.marks.k3.x - 6, kind: 'rabbit' }],
+      gaps: [{ x0: t.marks.lip1.x, x1: t.marks.lip1.x + 7 }, { x0: t.marks.lip2.x, x1: t.marks.lip2.x + 4, deep: true }, { x0: t.marks.lip3.x, x1: t.marks.lip3.x + 6 }] });
+  });
   const IS_LAB = !!root.TILT_LAB;
   const STAGES = IS_LAB ? LAB : S;
   const WORLDS = IS_LAB ? [{ id: 'lab', name: { ko: '효과 실험실', en: 'Effect Lab' } }] : [
@@ -418,6 +429,7 @@
       return Object.assign({ passed: false, done: false }, L);
     });
     this.makeBike(def.start);
+    this.airControl = !!def.lab;
     if (this.loops.length) this.setBikeMask(0xFFFB);
     this.phi = 0; this.time = 0; this.acc = 0;
     this.result = null;
@@ -526,7 +538,19 @@
       } else ch.applyForceToCenter(Vec2(-kd * v.x * sp, -kd * v.y * sp), true);
     }
     const gnd = this.grounded();
-    if (this.def.lab) ch.setAngularDamping(gnd === 0 && !this.rail ? 4 : 0); // [실험실] 공중 균형: 공중에서 차체 회전을 천천히 멈춤
+    if (this.def.lab) {   // [실험실] 공중 자세 조작: 공중에서 기울이면 자전거 앞뒤가 돎 (앞으로 = 앞이 숙여짐). 손을 놓으면 회전이 천천히 멈춤
+      const air = gnd === 0 && !this.rail;
+      if (air && !this.inAir) { this.inAir = true; this.airT = 0; this.phiRef = this.phi; }   // 뜬 순간의 기울기가 기준
+      if (!air) this.inAir = false; else this.airT += DT;
+      ch.setAngularDamping(air ? 4 : 0);
+      if (air && this.airControl && this.airT > 0.15) {   // 아주 짧게 뜬 건 무시
+        const u = Math.max(-1, Math.min(1, (this.phi - this.phiRef) / (15 * Math.PI / 180)));   // 기준에서 15° 더 숙이면 최대
+        if (Math.abs(u) > 0.12) {
+          const ramp = Math.min(1, (this.airT - 0.15) / 0.15), wt = -u * AIR_W * ramp, I = ch.getInertia() + 2 * this.wheels[0].body.getMass() * 0.3;
+          ch.applyTorque(I * (wt - ch.getAngularVelocity()) * 10, true);
+        }
+      }
+    }
     const st = gnd > 0 ? this.surfaceAt(p.x) : null, S0 = st && SURF[st];
     this.surfNow = st;
     if (gnd > 0 && sp > 0.001) {
@@ -577,7 +601,20 @@
     const g2 = this.grounded();
     if (this.wasGrounded > 0 && g2 === 0) this.airTime = 0;
     if (g2 === 0) this.airTime += DT;
-    if (this.wasGrounded === 0 && g2 > 0 && this.airTime > 0.25) this.events.push({ t: 'land', v: Math.abs(this.chassis.getLinearVelocity().y), air: this.airTime });
+    if (this.wasGrounded === 0 && g2 > 0 && this.airTime > 0.25) {
+      const ev = { t: 'land', v: Math.abs(this.chassis.getLinearVelocity().y), air: this.airTime };
+      if (this.def.lab) {   // [실험실] 착지 판정: 차체 각도와 땅 경사 차이
+        const p = this.chassis.getPosition(), ya = groundYAt(this.def.t.pieces, p.x - 0.5), yb = groundYAt(this.def.t.pieces, p.x + 0.5);
+        if (ya != null && yb != null) {
+          let rel = this.chassis.getAngle() - Math.atan2(yb - ya, 1); rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+          const d = Math.abs(rel) * 180 / Math.PI;
+          ev.rel = d; ev.grade = d < 8 ? 'perfect' : d < 20 ? 'good' : 'bad';
+          if (ev.grade === 'perfect') { for (const b of [this.chassis, ...this.wheels.map(w => w.body)]) { const v = b.getLinearVelocity(), sp = v.length() || 1; b.setLinearVelocity(Vec2(v.x * (1 + 0.8 / sp), v.y * (1 + 0.8 / sp))); } }
+          this.landings = this.landings || { perfect: 0, good: 0, bad: 0 }; this.landings[ev.grade]++;
+        }
+      }
+      this.events.push(ev);
+    }
     if (this.wasGrounded > 0 && g2 === 0 && this.chassis.getLinearVelocity().y > 2.5) this.events.push({ t: 'jump' });
     this.wasGrounded = g2;
     this.checkEnd();

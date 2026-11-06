@@ -310,6 +310,7 @@
   const MAX_TILT = 25 * Math.PI / 180;
   const R = 0.34;            // 바퀴 반지름
   const VT = 15;             // 최대 경사(25°) 평지에서의 끝 속도 목표 (공기 저항 계수 계산용)
+  const AIR_W = 3.2;          // [실험실] 공중 자세 조작 최대 회전 속도 (rad/s)
   const CRR = 0.02;          // 구름 저항 (경사 약 1.1°에 해당)
   const BRIDGE_HOLD = 0.32;  // 썩은 다리: 처음 밟은 뒤 이 시간부터 판자가 차례로 떨어짐
   const BRIDGE_STEP = 0.07;
@@ -652,6 +653,16 @@
       t, start: 3, finish: t.marks.end.x - 8, signs: [{ x: t.marks.loop.x - 10, kind: 'rabbit' }] });
   });
 
+  LAB.push(() => {
+    const t = new Terrain(0, 0);
+    t.go(6, 0).go(18, -10, 3).go(6, 0, 3).mark('k1').go(4.5, 18, 2.5).mark('lip1').gap(7, -3).mark('land1').go(14, -36, 1).go(10, 0, 8)
+      .go(10, -8, 3).go(6, 0, 2).mark('lip2').gap(4, -5).mark('land2').go(16, -26, 1).go(8, 0, 8)
+      .go(12, -10, 3).go(5, 0, 2).mark('k3').go(4, 22, 2).mark('lip3').gap(6, -1).mark('land3').go(10, -2, 0).go(6, 0, 3).go(24, 0, 3).mark('end');
+    return lab({ id: 'L10', theme: 0, icon: '🛬', name: { ko: '착지 연습', en: 'Landing Practice' }, hint: { ko: '공중에서 더 숙이면 앞이 내려가고, 젖히면 들려요. 바퀴를 땅 경사에 맞추면 완벽 착지!', en: 'In the air: lean further to drop the nose, lean back to lift it. Match the slope for a perfect landing!' },
+      t, start: 3, finish: t.marks.end.x - 8,
+      signs: [{ x: t.marks.k1.x - 6, kind: 'rabbit' }, { x: t.marks.k3.x - 6, kind: 'rabbit' }],
+      gaps: [{ x0: t.marks.lip1.x, x1: t.marks.lip1.x + 7 }, { x0: t.marks.lip2.x, x1: t.marks.lip2.x + 4, deep: true }, { x0: t.marks.lip3.x, x1: t.marks.lip3.x + 6 }] });
+  });
   const IS_LAB = !!root.TILT_LAB;
   const STAGES = IS_LAB ? LAB : S;
   const WORLDS = IS_LAB ? [{ id: 'lab', name: { ko: '효과 실험실', en: 'Effect Lab' } }] : [
@@ -719,6 +730,7 @@
       return Object.assign({ passed: false, done: false }, L);
     });
     this.makeBike(def.start);
+    this.airControl = !!def.lab;
     if (this.loops.length) this.setBikeMask(0xFFFB);
     this.phi = 0; this.time = 0; this.acc = 0;
     this.result = null;
@@ -827,7 +839,19 @@
       } else ch.applyForceToCenter(Vec2(-kd * v.x * sp, -kd * v.y * sp), true);
     }
     const gnd = this.grounded();
-    if (this.def.lab) ch.setAngularDamping(gnd === 0 && !this.rail ? 4 : 0); // [실험실] 공중 균형: 공중에서 차체 회전을 천천히 멈춤
+    if (this.def.lab) {   // [실험실] 공중 자세 조작: 공중에서 기울이면 자전거 앞뒤가 돎 (앞으로 = 앞이 숙여짐). 손을 놓으면 회전이 천천히 멈춤
+      const air = gnd === 0 && !this.rail;
+      if (air && !this.inAir) { this.inAir = true; this.airT = 0; this.phiRef = this.phi; }   // 뜬 순간의 기울기가 기준
+      if (!air) this.inAir = false; else this.airT += DT;
+      ch.setAngularDamping(air ? 4 : 0);
+      if (air && this.airControl && this.airT > 0.15) {   // 아주 짧게 뜬 건 무시
+        const u = Math.max(-1, Math.min(1, (this.phi - this.phiRef) / (15 * Math.PI / 180)));   // 기준에서 15° 더 숙이면 최대
+        if (Math.abs(u) > 0.12) {
+          const ramp = Math.min(1, (this.airT - 0.15) / 0.15), wt = -u * AIR_W * ramp, I = ch.getInertia() + 2 * this.wheels[0].body.getMass() * 0.3;
+          ch.applyTorque(I * (wt - ch.getAngularVelocity()) * 10, true);
+        }
+      }
+    }
     const st = gnd > 0 ? this.surfaceAt(p.x) : null, S0 = st && SURF[st];
     this.surfNow = st;
     if (gnd > 0 && sp > 0.001) {
@@ -878,7 +902,20 @@
     const g2 = this.grounded();
     if (this.wasGrounded > 0 && g2 === 0) this.airTime = 0;
     if (g2 === 0) this.airTime += DT;
-    if (this.wasGrounded === 0 && g2 > 0 && this.airTime > 0.25) this.events.push({ t: 'land', v: Math.abs(this.chassis.getLinearVelocity().y), air: this.airTime });
+    if (this.wasGrounded === 0 && g2 > 0 && this.airTime > 0.25) {
+      const ev = { t: 'land', v: Math.abs(this.chassis.getLinearVelocity().y), air: this.airTime };
+      if (this.def.lab) {   // [실험실] 착지 판정: 차체 각도와 땅 경사 차이
+        const p = this.chassis.getPosition(), ya = groundYAt(this.def.t.pieces, p.x - 0.5), yb = groundYAt(this.def.t.pieces, p.x + 0.5);
+        if (ya != null && yb != null) {
+          let rel = this.chassis.getAngle() - Math.atan2(yb - ya, 1); rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+          const d = Math.abs(rel) * 180 / Math.PI;
+          ev.rel = d; ev.grade = d < 8 ? 'perfect' : d < 20 ? 'good' : 'bad';
+          if (ev.grade === 'perfect') { for (const b of [this.chassis, ...this.wheels.map(w => w.body)]) { const v = b.getLinearVelocity(), sp = v.length() || 1; b.setLinearVelocity(Vec2(v.x * (1 + 0.8 / sp), v.y * (1 + 0.8 / sp))); } }
+          this.landings = this.landings || { perfect: 0, good: 0, bad: 0 }; this.landings[ev.grade]++;
+        }
+      }
+      this.events.push(ev);
+    }
     if (this.wasGrounded > 0 && g2 === 0 && this.chassis.getLinearVelocity().y > 2.5) this.events.push({ t: 'jump' });
     this.wasGrounded = g2;
     this.checkEnd();
@@ -1004,6 +1041,12 @@
     finish() { if (!ensure()) return; const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.22, t + i * 0.09)); tone(1319, 0.5, 'triangle', 0.2, t + 0.4); },
     star(i) { if (!ensure()) return; tone(880 * Math.pow(1.25, i), 0.16, 'triangle', 0.2, ctx.currentTime); },
     fail() { if (!ensure()) return; const t = ctx.currentTime; tone(330, 0.25, 'square', 0.12, t, 250); tone(220, 0.4, 'square', 0.12, t + 0.22, 150); },
+    grade(g) {   // [실험실] 착지 판정 소리
+      if (!ensure()) return; const t = ctx.currentTime;
+      if (g === 'perfect') { [784, 988, 1319].forEach((f, i) => tone(f, 0.16, 'triangle', 0.16, t + i * 0.05)); }
+      else if (g === 'good') tone(660, 0.12, 'triangle', 0.1, t);
+      else { burst(0.25, 0.9, t, 1500, 'bandpass'); tone(160, 0.2, 'sawtooth', 0.15, t, 70); }
+    },
     whoosh() { if (!ensure()) return; burst(0.4, 0.4, ctx.currentTime, 1500, 'bandpass'); },
     fall() {   // 떨어지는 바람 소리 + 낮아지는 휘파람
       if (!ensure()) return; const t = ctx.currentTime;
@@ -1172,7 +1215,35 @@
   const ROAD = { ice: ['#cfeefc', '#b4e0f4'], rock: ['#8e8984', '#7d7873'], mud: ['#5e3d23', '#52341e'], wet: ['#434b58', '#4a5361'] };
   const SIDE = { ice: ['#bfe8fb', '#ffffff'], rock: ['#86807a', '#5f5a55'], mud: ['#5a3920', '#7a5233'], wet: ['#3d4552', '#9fb3c8'] };
 
-  function reset(sim) { parts.length = 0; lens.length = 0; spray.length = 0; ripples.length = 0; lastSim = sim; shake = 0; }
+  function reset(sim) { parts.length = 0; lens.length = 0; spray.length = 0; ripples.length = 0; lastSim = sim; shake = 0; pops.length = 0; health = 100; }
+
+  // ---------- 착지 판정 글씨 + 자전거 상태(데미지 미리보기, 이 판에서만) ----------
+  const pops = []; let health = 100;
+  const GRADE = { perfect: { ko: '완벽 착지!', en: 'Perfect landing!', col: '#ffd43b' }, good: { ko: '괜찮은 착지', en: 'Good landing', col: '#b9f3c4' }, bad: { ko: '나쁜 착지…', en: 'Bad landing…', col: '#ff9b8a' } };
+  function onLand(ev, lang) {
+    if (!ev.grade) return;
+    const g = GRADE[ev.grade];
+    if (ev.grade === 'bad') health = Math.max(0, health - Math.round(10 + (ev.rel - 20) * 0.8));
+    else if (ev.grade === 'good') health = Math.max(0, health - 3);
+    pops.push({ text: g[lang === 'ko' ? 'ko' : 'en'] + (ev.grade === 'perfect' ? ' +💨' : ''), col: g.col, t: 0 });
+  }
+  function popsFx(g) {
+    const { ctx, W, H, dt, sim } = g;
+    for (let i = pops.length - 1; i >= 0; i--) {
+      const p = pops[i]; p.t += dt; if (p.t > 1.3) { pops.splice(i, 1); continue; }
+      const k = Math.min(1, p.t / 0.12), a = Math.min(1, (1.3 - p.t) / 0.4), y = H * 0.32 - p.t * 30;
+      ctx.save(); ctx.globalAlpha = a; ctx.font = 'bold ' + Math.round(26 + 8 * (1 - k)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(15,29,43,.8)'; ctx.strokeText(p.text, W / 2, y); ctx.fillStyle = p.col; ctx.fillText(p.text, W / 2, y); ctx.restore();
+    }
+    if (sim.landings || health < 100) {   // 자전거 상태 막대 (왼쪽 위, 판 이름 아래)
+      const x = 12, y = 92, w = 130, h = 14;
+      ctx.fillStyle = 'rgba(15,29,43,.55)'; ctx.fillRect(x, y - 3, w + 70, h + 6);
+      ctx.fillStyle = '#2a3a4c'; ctx.fillRect(x + 26, y, w, h);
+      ctx.fillStyle = health > 60 ? '#5ad17a' : health > 30 ? '#ffc43b' : '#ff6b5a'; ctx.fillRect(x + 26, y, w * health / 100, h);
+      ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+      ctx.fillText('🔧', x + 4, y + h / 2 + 1); ctx.fillText(health + '%', x + 30 + w, y + h / 2 + 1);
+    }
+  }
 
   // ---------- 매 프레임: 상태와 입자 ----------
   function update(sim, dt, fp) {
@@ -1350,6 +1421,7 @@
       ctx.globalAlpha = 1;
     }
     windGauge(g);
+    popsFx(g);
   }
   // 1인칭 렌즈 (손보다 위)
   function lensFx(g) {
@@ -1435,7 +1507,7 @@
   }
 
   root.Lab = {
-    update, reset, sideTerrain, sideParticles, screen, lensFx, fpRoad, fogBegin, fogAt, fpItems, jumpButton,
+    update, reset, onLand, sideTerrain, sideParticles, screen, lensFx, fpRoad, fogBegin, fogAt, fpItems, jumpButton,
     get shake() { return shake; }, get surf() { return surfNow; }, get rain() { return rainLevel; }, get speed() { return speedNow; }
   };
 })(window);
@@ -2455,7 +2527,7 @@
       sim.step(phiDeg * DEG, dt);
       for (const ev of sim.drainEvents()) {
         if (ev.t === 'jump') A.SFX.jump();
-        else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); }
+        else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); if (LAB && ev.grade) { LAB.onLand(ev, L.lang); A.SFX.grade && A.SFX.grade(ev.grade); if (ev.grade === 'bad') vibrate([30, 20, 40]); } }
         else if (ev.t === 'gate') { A.SFX.gate(); vibrate(10); }
         else if (ev.t === 'bridge') A.SFX.bridge();
         else if (ev.t === 'crash') { if (ev.kind === 'gap' || ev.kind === 'cliff') { startFall(ev.kind); view.shake = 4; } else { A.SFX.crash(); vibrate([40, 30, 60]); view.shake = 10; } }

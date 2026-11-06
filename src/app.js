@@ -1013,7 +1013,7 @@
       sim.step(phiDeg * DEG, dt);
       for (const ev of sim.drainEvents()) {
         if (ev.t === 'jump') A.SFX.jump();
-        else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); }
+        else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); if (LAB && ev.grade) { LAB.onLand(ev, L.lang); A.SFX.grade && A.SFX.grade(ev.grade); if (ev.grade === 'bad') vibrate([30, 20, 40]); } }
         else if (ev.t === 'gate') { A.SFX.gate(); vibrate(10); }
         else if (ev.t === 'bridge') A.SFX.bridge();
         else if (ev.t === 'crash') { if (ev.kind === 'gap' || ev.kind === 'cliff') { startFall(ev.kind); view.shake = 4; } else { A.SFX.crash(); vibrate([40, 30, 60]); view.shake = 10; } }
