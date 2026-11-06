@@ -1,7 +1,7 @@
 // [실험실] 효과 실험: 바닥 재질·안개·비·돌풍·루프·점프의 그림과 화면 효과 (lab.html에만 들어감)
 (function (root) {
   const C = root.TiltCore;
-  if (!C || !C.IS_LAB) return;
+  if (!C) return;   // 실험실과 2.0 새 세계에서 씀
   const rnd = Math.random;
   const parts = [];            // 옆 시점: 월드 좌표 입자 (흙탕물, 얼음 가루, 돌먼지, 물보라)
   const lens = [];             // 1인칭: 화면(렌즈)에 붙는 물방울·흙탕물
@@ -21,7 +21,7 @@
   const pops = []; let health = 100;
   const GRADE = { perfect: { ko: '완벽 착지!', en: 'Perfect landing!', col: '#ffd43b' }, good: { ko: '괜찮은 착지', en: 'Good landing', col: '#b9f3c4' }, bad: { ko: '나쁜 착지…', en: 'Bad landing…', col: '#ff9b8a' } };
   function onLand(ev, lang) {
-    if (!ev.grade) return;
+    if (!ev.grade || !lastSim || !(lastSim.def.lab || lastSim.def.fx)) return;   // 글씨는 공중 조작이 되는 판에서만
     const g = GRADE[ev.grade];
     if (ev.grade === 'bad') health = Math.max(0, health - Math.round(10 + (ev.rel - 20) * 0.8));
     else if (ev.grade === 'good') health = Math.max(0, health - 3);
@@ -35,7 +35,7 @@
       ctx.save(); ctx.globalAlpha = a; ctx.font = 'bold ' + Math.round(26 + 8 * (1 - k)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(15,29,43,.8)'; ctx.strokeText(p.text, W / 2, y); ctx.fillStyle = p.col; ctx.fillText(p.text, W / 2, y); ctx.restore();
     }
-    if (sim.landings || health < 100) {   // 자전거 상태 막대 (왼쪽 위, 판 이름 아래)
+    if (C.IS_LAB && (sim.landings || health < 100)) {   // 자전거 상태 막대 (실험실 미리보기) (왼쪽 위, 판 이름 아래)
       const x = 12, y = 92, w = 130, h = 14;
       ctx.fillStyle = 'rgba(15,29,43,.55)'; ctx.fillRect(x, y - 3, w + 70, h + 6);
       ctx.fillStyle = '#2a3a4c'; ctx.fillRect(x + 26, y, w, h);

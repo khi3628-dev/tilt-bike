@@ -66,6 +66,9 @@
       else if (g === 'good') tone(660, 0.12, 'triangle', 0.1, t);
       else { burst(0.25, 0.9, t, 1500, 'bandpass'); tone(160, 0.2, 'sawtooth', 0.15, t, 70); }
     },
+    coin() { if (!ensure()) return; const t = ctx.currentTime; tone(1320, 0.06, 'square', 0.06, t); tone(1760, 0.1, 'square', 0.06, t + 0.05); },
+    buy() { if (!ensure()) return; const t = ctx.currentTime; [660, 880, 1100, 1320].forEach((f, i) => tone(f, 0.1, 'triangle', 0.14, t + i * 0.05)); },
+    daily() { if (!ensure()) return; const t = ctx.currentTime; [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.18, 'triangle', 0.16, t + i * 0.07)); },
     whoosh() { if (!ensure()) return; burst(0.4, 0.4, ctx.currentTime, 1500, 'bandpass'); },
     fall() {   // 떨어지는 바람 소리 + 낮아지는 휘파람
       if (!ensure()) return; const t = ctx.currentTime;

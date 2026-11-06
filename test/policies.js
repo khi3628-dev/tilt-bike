@@ -11,7 +11,7 @@ const P = (list) => (s, m, z, g) => { for (const [xEnd, pol] of list) if (s.x < 
 const X = (f) => (m, z) => f(m, z);
 
 // 2.0: 점프(상자까지 남은 시간 0.2~0.32초, 위로 넘는 틈은 끝에서) / 공중에서 땅 경사에 맞추기
-const G0 = require('../src/core.js');
+const G0 = typeof require !== 'undefined' ? require('../src/core.js') : window.TiltCore;
 const JMP = (base, keys) => { const f = (s, m, z, g, sim) => base(s, m, z, g, sim); f.jump = (s, m) => keys.some(k => { if (!m[k]) return false; const tt = (m[k].x - s.x) / Math.max(1, s.vx); return tt < 0.32 && tt > 0.2; }) || (m.lip2 && s.x > m.lip2.x - 0.9 && s.x < m.lip2.x); return f; };
 const PIL = (base) => { const f = (s, m, z, g, sim) => { if (!sim || sim.grounded() > 0 || !sim.inAir) return base(s, m, z, g, sim); const P = sim.def.t.pieces, x = s.x + Math.max(1, s.vx * 0.35), ya = G0.groundYAt(P, x - 0.5), yb = G0.groundYAt(P, x + 0.5); const sl = ya != null && yb != null ? Math.atan2(yb - ya, 1) : 0; let e = s.angle - sl; e = Math.atan2(Math.sin(e), Math.cos(e)); return clamp(sim.phiRef * 180 / Math.PI + 60 * e + 6 * sim.chassis.getAngularVelocity()); }; f.jump = base.jump; return f; };
 const ZS = (a) => P([[X((m, z) => z.x0 - 14), C(a)], [X(() => 1e9), STOP.z]]);

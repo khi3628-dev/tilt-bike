@@ -5,10 +5,11 @@ const rd = p => fs.readFileSync(path.join(__dirname, p), 'utf8');
 const safe = s => s.replace(/<\/script/gi, '<\\/script');
 function build(withSdk, lab) {
   let html = rd('src/index.src.html');
-  if (lab) html = html.replace('<script>/*CORE*/</script>', '<script>window.TILT_LAB = true;</script>\n<script>/*CORE*/</script>').replace('<script>/*APP*/</script>', '<script>/*LAB*/</script>\n<script>/*APP*/</script>').replace(/<title>[^<]*<\/title>/, '<title>기울기 자전거 — 효과 실험실</title>');
+  html = html.replace('<script>/*APP*/</script>', '<script>/*LAB*/</script>\n<script>/*APP*/</script>');   // 2.0: 효과(새 세계)는 본편에도 씀
+  if (lab) html = html.replace('<script>/*CORE*/</script>', '<script>window.TILT_LAB = true;</script>\n<script>/*CORE*/</script>').replace(/<title>[^<]*<\/title>/, '<title>기울기 자전거 — 효과 실험실</title>');
   html = html.replace('<!--CGSDK-->', withSdk ? '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>' : '');
   html = html.replace('<script>/*PLANCK*/</script>', () => '<script>' + safe(rd('node_modules/planck/dist/planck.min.js').replace(/\/\/# sourceMappingURL=.*$/m, '')) + '</script>');
-  for (const [tag, file] of [['I18N', 'src/i18n.js'], ['CORE', 'src/core.js'], ['AUDIO', 'src/audio.js'], ['CG', 'src/cg.js'], ['LAB', 'src/lab.js'], ['APP', 'src/app.js']])
+  for (const [tag, file] of [['I18N', 'src/i18n.js'], ['STAGEDATA', 'src/stagedata.js'], ['CORE', 'src/core.js'], ['META', 'src/meta.js'], ['AUDIO', 'src/audio.js'], ['CG', 'src/cg.js'], ['LAB', 'src/lab.js'], ['APP', 'src/app.js']])
     html = html.replace('<script>/*' + tag + '*/</script>', () => '<script>' + safe(rd(file)) + '</script>');
   return html;
 }

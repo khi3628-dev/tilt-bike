@@ -54,7 +54,9 @@ const HANGUL = /[ㄱ-ㆎ가-힣]/;
     window.__iv = setInterval(() => {
       const sim = window.__tb.sim; if (!sim || sim.result) return;
       const g = sim.def.gates.map(x => x.zone);
-      window.__tb.setAngle(f(sim.snapshot(), sim.def.t.marks, sim.def.stopZone, g));
+      const sn = sim.snapshot();
+      if (f.jump && f.jump(sn, sim.def.t.marks, sim)) sim.jump();
+      window.__tb.setAngle(f(sn, sim.def.t.marks, sim.def.stopZone, g, sim));
     }, 16);
   }, [i, which]);
   const stopDrive = (page) => page.evaluate(() => { clearInterval(window.__iv); window.__tb.setAngle(null); });
@@ -72,7 +74,7 @@ const HANGUL = /[ㄱ-ㆎ가-힣]/;
     await page.screenshot({ path: shots + '/02_worlds.png' });
     // 잠금: 2번 세계는 잠김
     const lockedW = await page.$$eval('#worldList .tile', els => els.map(e => e.className.includes('locked')));
-    check(lockedW.join() === 'false,true,true', '세계 2·3 잠김');
+    check(lockedW.join() === 'false,true,true,true,true,true', '세계 2~6 잠김');
     await page.click('#worldList .tile:nth-child(1)'); await sleep(200);
     const lockedS = await page.$$eval('#stageList .tile', els => els.map(e => e.className.includes('locked')));
     check(lockedS.join() === 'false,true,true,true,true', '1-2~1-5 잠김');
@@ -85,17 +87,17 @@ const HANGUL = /[ㄱ-ㆎ가-힣]/;
       const title = await page.textContent('#resTitle');
       const stars = await page.$$eval('#resStars .lit', e => e.length);
       starsAll.push(stars);
-      check(st.overlay === 'ovResult' && st.result && st.result.ok, `${i + 1}/15 ${await page.evaluate(() => window.__tb.sim.def.id)} 완주 (${title}, ★${stars}, ${st.result && st.result.time && st.result.time.toFixed(1)}s)`);
+      check(st.overlay === 'ovResult' && st.result && st.result.ok, `${i + 1}/${stageCount} ${await page.evaluate(() => window.__tb.sim.def.id)} 완주 (${title}, ★${stars}, ${st.result && st.result.time && st.result.time.toFixed(1)}s)`);
       if (i === 2 || i === 7 || i === 11) await page.screenshot({ path: shots + `/1${i}_result.png` });
       await stopDrive(page);
     }
     check(starsAll.every(s => s === 3), '모범 운전은 모두 ★3 (' + starsAll.join('') + ')');
     const prog = await page.evaluate(() => window.__tb.PROG);
-    check(Object.keys(prog.stars).length === stageCount, '별이 15판 모두 저장됨');
+    check(Object.keys(prog.stars).length === stageCount, '별이 ' + stageCount + '판 모두 저장됨');
     await page.evaluate(() => window.__tb.openWorlds()); await sleep(150);
     const lockedW2 = await page.$$eval('#worldList .tile', els => els.map(e => e.className.includes('locked')));
-    check(lockedW2.join() === 'false,false,false', '15판 뒤 세계 모두 열림');
-    check(/45\/45/.test(await page.textContent('#worldsStars')), '합계 45/45');
+    check(lockedW2.every(v => !v), '모든 판 뒤 세계 모두 열림');
+    check(new RegExp(stageCount * 3 + '/' + stageCount * 3).test(await page.textContent('#worldsStars')), '합계 ' + stageCount * 3);
     await page.screenshot({ path: shots + '/03_worlds_done.png' });
     // 새로고침 뒤 유지
     await page.reload(); await sleep(500);
@@ -216,7 +218,7 @@ const HANGUL = /[ㄱ-ㆎ가-힣]/;
       await page.close();
     }
     // (b) 옆 시점: 핸들 돌리기 + 0° 맞추기
-    const { page, errs } = await mk(844, 390, { isMobile: true, hasTouch: true }, 'window.DeviceMotionEvent.requestPermission = () => Promise.resolve("granted"); try { if (!localStorage.getItem("tiltbike.set")) localStorage.setItem("tiltbike.set", JSON.stringify({ view: "side" })); } catch (e) {}');
+    const { page, errs } = await mk(844, 390, { isMobile: true, hasTouch: true }, 'window.DeviceMotionEvent.requestPermission = () => Promise.resolve("granted"); try { if (!localStorage.getItem("fixiedrop.set")) localStorage.setItem("fixiedrop.set", JSON.stringify({ view: "side" })); } catch (e) {}');
     await page.goto(base + '/#test'); await sleep(300);
     await page.evaluate(() => { window.__g = { x: -9.5, y: 0.8, z: -2.0 }; window.__mv = setInterval(() => window.dispatchEvent(new DeviceMotionEvent('devicemotion', { accelerationIncludingGravity: window.__g })), 16); });
     await page.tap('#title'); await sleep(200); await page.tap('#bTilt'); await sleep(600);
@@ -263,13 +265,13 @@ const HANGUL = /[ㄱ-ㆎ가-힣]/;
     const { page, errs } = await mk(1280, 720, { locale: 'ko-KR' }, polSrc);
     await page.goto(base + '/cg#test'); await sleep(600);
     let calls = await page.evaluate(() => window.__cg.calls);
-    check(calls.slice(0, 3).join(',') === 'init,loadingStart,get:tiltbike.prog' && calls.includes('loadingStop') && calls.indexOf('loadingStop') > calls.indexOf('get:tiltbike.prog'), 'init → loadingStart → 저장 읽기 → loadingStop: ' + calls.join(','));
-    check(calls.includes('set:tiltbike.prog'), '계정 저장 없음 → 이 브라우저 기록 올림');
+    check(calls.slice(0, 3).join(',') === 'init,loadingStart,get:fixiedrop.prog' && calls.includes('loadingStop') && calls.indexOf('loadingStop') > calls.indexOf('get:fixiedrop.prog'), 'init → loadingStart → 저장 읽기 → loadingStop: ' + calls.join(','));
+    check(calls.includes('set:fixiedrop.prog'), '계정 저장 없음 → 이 브라우저 기록 올림');
     await page.click('#title'); await sleep(200);
     await page.evaluate(() => { window.__cg.calls.length = 0; });
     await drive(page, 0, null); await waitResult(page);
     calls = await page.evaluate(() => window.__cg.calls);
-    check(calls[0] === 'gameplayStart' && calls.includes('gameplayStop') && calls.includes('happytime') && calls.includes('set:tiltbike.prog'), '판 시작 gameplayStart → 결과 gameplayStop + 첫 ★3 happytime + 저장: ' + calls.join(','));
+    check(calls[0] === 'gameplayStart' && calls.includes('gameplayStop') && calls.includes('happytime') && calls.includes('set:fixiedrop.prog'), '판 시작 gameplayStart → 결과 gameplayStop + 첫 ★3 happytime + 저장: ' + calls.join(','));
     await stopDrive(page);
     await page.evaluate(() => { window.__cg.calls.length = 0; });
     await page.click('#bNext'); await sleep(200);
@@ -284,7 +286,7 @@ const HANGUL = /[ㄱ-ㆎ가-힣]/;
     await page.evaluate(() => window.__cg.settingsListeners.forEach(cb => cb({ data: { muteAudio: true } })));
     check((await page.evaluate(() => window.__tb.A.get('muted'))) === true, 'SDK 음소거 설정 따름');
     // 계정 저장 복원
-    await page.evaluate(() => { window.__cg.data['tiltbike.prog'] = JSON.stringify({ stars: { 0: 3, 1: 2, 2: 1 }, best: {} }); sessionStorage.setItem('__cgdata', JSON.stringify(window.__cg.data)); try { localStorage.clear(); } catch (e) { } });
+    await page.evaluate(() => { window.__cg.data['fixiedrop.prog'] = JSON.stringify({ stars: { 0: 3, 1: 2, 2: 1 }, best: {} }); sessionStorage.setItem('__cgdata', JSON.stringify(window.__cg.data)); try { localStorage.clear(); } catch (e) { } });
     await page.reload(); await sleep(600);
     const prog = await page.evaluate(() => window.__tb.PROG);
     check(prog.stars[2] === 1 && prog.stars[1] === 2, '계정 저장이 있으면 그걸로 복원');

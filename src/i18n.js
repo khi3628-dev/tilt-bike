@@ -1,7 +1,7 @@
 // 한국어 / 영어
 (function (root) {
   const KO = {
-    title: '기울기 자전거', tapToStart: '화면을 눌러 시작',
+    title: '픽시 드롭', tapToStart: '화면을 눌러 시작',
     introLine1: '폰을 <b>가로로</b> 들고 핸들처럼 돌리세요.', introLine2: '오른쪽을 내리면 길이 <b>내리막</b>이 되어 빨라지고, 반대로 돌리면 멈춰요.',
     introKeys: '← → 또는 A D 로 기울이고, R 로 다시 해요.',
     startTilt: '기울기로 시작', startTouch: '화면 누르기로 시작', startKeys: '키보드로 시작',
@@ -35,10 +35,18 @@
     rotateTitle: '폰을 가로로 돌려 주세요', rotateText: '화면이 안 돌아가면 <b>화면 방향 잠금</b>을 꺼 주세요.', rotateAnyway: '세로로 그냥 하기',
     stopHere: '여기서 멈추기', stopZone: '멈춤 구역', ad: '광고…', loading: '불러오는 중…',
     totalStars: '별', worldClear: '세계 완주', stars3: '별 3개: 기준 시간 안에 완주',
-    on: '켬', off: '끔', view: '시점', viewFP: '1인칭', viewSide: '옆에서', introFP1: '폰을 가로로 <b>똑바로 세워</b> 들고 화면을 보세요.', introFP2: '<b>앞으로 숙일수록</b> 내리막이 가팔라지고(90°에서 최고), 뒤로 젖히면 브레이크예요.', dPitch: '앞뒤 각도', recMobile: '모바일 추천', recPC: 'PC 추천'
+    on: '켬', off: '끔', view: '시점', viewFP: '1인칭', viewSide: '옆에서', introFP1: '폰을 가로로 <b>똑바로 세워</b> 들고 화면을 보세요.', introFP2: '<b>앞으로 숙일수록</b> 내리막이 가팔라지고(90°에서 최고), 뒤로 젖히면 브레이크예요.', dPitch: '앞뒤 각도', recMobile: '모바일 추천', recPC: 'PC 추천',
+    garage: '픽시 만들기', modeForward: '정방향', modeReverse: '거꾸로', reverseNote: '거꾸로: 끝에서 처음으로. 정방향을 깨면 열려요. 점프 가능.', reverseLocked: '정방향을 먼저 깨면 열려요', noReverse: '이 판은 거꾸로 못 달려요', daily: '출석', coins: '코인', buy: '사기', equip: '장착', equipped: '장착 중', notEnough: '코인이 모자라요', bought: '샀어요!',
+    gBike: '자전거', gFrame: '차체 색', gFrameP: '프레임', gWheels: '바퀴', gBars: '핸들', gGear: '기어비', stAir: '점프·공중', stBrake: '멈추기', stWind: '바람', gShirt: '옷 색', gHelmet: '헬멧 색', dailyOnly: '출석 7일째',
+    stSpeed: '속도', stRough: '험한 길', stIce: '얼음', stJump: '점프',
+    dailyTitle: '출석 보상', dailyDay: '{n}일째', dailyClaim: '받기', dailyDone: '오늘은 받았어요. 내일 또 와요!', dailyGot: '{n}코인 받았어요!', dailyGold: '금색 차체·헬멧을 받았어요!', dailyHint: '하루 빠져도 이어져요. 이틀 빠지면 1일째부터.',
+    rwCoinsPicked: '주운 코인', rwFinish: '완주', rwFirstClear: '첫 완주', rwStars: '새 별', rwMissions: '새 미션', rwTotal: '받은 코인',
+    missions: '미션', msCoins: '코인 전부 줍기 ({n}개)', msTop: '최고 속도 {v}km/h 넘기', msAir: '공중에 {v}초 이상', msNobrake: '한 번도 뒤로 젖히지 않고 완주', msPerfect: '완벽 착지 {v}번',
+    ghost: '내 기록 고스트', newGhost: '최고 기록 고스트 저장',
+    wear: '자전거 상태', repair: '수리', repairDone: '수리했어요!', repairNeed: '자전거가 망가졌어요. 차고에서 수리하면 다시 빨라져요.', wearLabel: '망가짐'
   };
   const EN = {
-    title: 'Tilt Bike', tapToStart: 'Tap to start',
+    title: 'Fixie Drop', tapToStart: 'Tap to start',
     introLine1: 'Hold the phone <b>sideways</b> and turn it like handlebars.', introLine2: 'Dip the right side and the road tips <b>downhill</b>. Tilt back to brake.',
     introKeys: '← → or A D to tilt, R to restart.',
     startTilt: 'Play with tilt', startTouch: 'Play with touch', startKeys: 'Play with keyboard',
@@ -72,7 +80,15 @@
     rotateTitle: 'Turn your phone sideways', rotateText: 'If it will not rotate, turn off <b>orientation lock</b>.', rotateAnyway: 'Play in portrait anyway',
     stopHere: 'Stop here', stopZone: 'Stop zone', ad: 'Advertisement…', loading: 'Loading…',
     totalStars: 'stars', worldClear: 'World cleared', stars3: '3 stars: finish within the target time',
-    on: 'On', off: 'Off', view: 'View', viewFP: 'First person', viewSide: 'Side', introFP1: 'Hold the phone sideways and <b>upright</b>, screen facing you.', introFP2: '<b>Lean it forward</b> to ride downhill (steepest at 90°). Lean back to brake.', dPitch: 'Forward lean', recMobile: 'best on mobile', recPC: 'best on PC'
+    on: 'On', off: 'Off', view: 'View', viewFP: 'First person', viewSide: 'Side', introFP1: 'Hold the phone sideways and <b>upright</b>, screen facing you.', introFP2: '<b>Lean it forward</b> to ride downhill (steepest at 90°). Lean back to brake.', dPitch: 'Forward lean', recMobile: 'best on mobile', recPC: 'best on PC',
+    garage: 'Build a fixie', modeForward: 'Forward', modeReverse: 'Reverse', reverseNote: 'Reverse: ride end to start. Unlocks after clearing it forward. Jumping allowed.', reverseLocked: 'Clear it forward first', noReverse: 'This stage cannot be reversed', daily: 'Daily', coins: 'Coins', buy: 'Buy', equip: 'Use', equipped: 'In use', notEnough: 'Not enough coins', bought: 'Bought!',
+    gBike: 'Bikes', gFrame: 'Paint', gFrameP: 'Frame', gWheels: 'Wheels', gBars: 'Bars', gGear: 'Gearing', stAir: 'Jump/air', stBrake: 'Stopping', stWind: 'Wind', gShirt: 'Shirt', gHelmet: 'Helmet', dailyOnly: 'Day 7 reward',
+    stSpeed: 'Speed', stRough: 'Rough', stIce: 'Ice', stJump: 'Jump',
+    dailyTitle: 'Daily reward', dailyDay: 'Day {n}', dailyClaim: 'Claim', dailyDone: 'Claimed today. Come back tomorrow!', dailyGot: 'You got {n} coins!', dailyGold: 'You got the gold frame and helmet!', dailyHint: 'Miss one day and the streak holds. Miss two and it restarts.',
+    rwCoinsPicked: 'Coins picked', rwFinish: 'Finish', rwFirstClear: 'First clear', rwStars: 'New stars', rwMissions: 'New missions', rwTotal: 'Coins earned',
+    missions: 'Missions', msCoins: 'Grab every coin ({n})', msTop: 'Top speed over {v} km/h', msAir: 'Over {v}s in the air', msNobrake: 'Finish without leaning back', msPerfect: '{v} perfect landings',
+    ghost: 'Best-run ghost', newGhost: 'Best-run ghost saved',
+    wear: 'Bike condition', repair: 'Repair', repairDone: 'Repaired!', repairNeed: 'Your bike is worn out. Repair it in the garage to get your speed back.', wearLabel: 'worn'
   };
   let lang = 'ko';
   const api = {

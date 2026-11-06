@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Tilt Bike</title>
+<title>Fixie Drop</title>
 <!--CGSDK-->
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -84,6 +84,35 @@
   #title .tbtns { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); display: flex; gap: 8px; }
   @keyframes blink { 0%, 100% { opacity: .95 } 50% { opacity: .4 } }
   #stageLabel .w { opacity: .7; font-weight: 600; }
+  /* 2.0: 코인·차고·출석 */
+  .coinbar { font-weight: 800; color: #b07a00; font-size: 15px; white-space: nowrap; }
+  .tile .ms { display: block; font-size: 10px; color: #2f9e57; letter-spacing: 2px; min-height: 12px; }
+  .gsec { text-align: left; font-weight: 800; font-size: 14px; margin: 12px 2px 4px; color: #3a4a58; }
+  .gbikes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .gbike { border: 2px solid #dfe6ec; border-radius: 12px; padding: 8px 10px; text-align: left; background: #fff; font-family: inherit; color: #1d2a36; }
+  .gbike.on { border-color: #2b6cb0; background: #eef5fc; }
+  .gbike b { font-size: 15px; } .gbike .d { font-size: 12px; color: #6b7a87; margin: 2px 0 4px; min-height: 30px; }
+  .gbike .bar { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #3a4a58; }
+  .gbike .bar i { flex: 1; height: 6px; background: #e3e9ef; border-radius: 3px; position: relative; overflow: hidden; }
+  .gbike .bar i s { position: absolute; left: 0; top: 0; bottom: 0; background: #2f9e57; border-radius: 3px; }
+  .gbike .bar span { width: 46px; }
+  .gbike button, .gsw button.act { margin-top: 6px; }
+  .gsw { display: flex; flex-wrap: wrap; gap: 8px; }
+  .gsw .sw { width: 64px; border: 2px solid #dfe6ec; border-radius: 12px; padding: 6px 4px; background: #fff; font-size: 12px; font-family: inherit; cursor: pointer; color: #1d2a36; }
+  .gsw .sw.on { border-color: #2b6cb0; background: #eef5fc; }
+  .gsw .sw .c { display: block; width: 30px; height: 30px; border-radius: 50%; margin: 0 auto 4px; border: 2px solid rgba(0,0,0,.15); }
+  .gsw .sw.locked { opacity: .55; }
+  .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 10px 0; }
+  .days div { border-radius: 10px; background: #eef0f2; padding: 8px 2px; font-size: 12px; font-weight: 700; color: #6b7a87; }
+  .days div b { display: block; font-size: 16px; color: #1d2a36; margin-top: 2px; }
+  .days div.got { background: #d5f0dc; } .days div.today { background: #ffe9a8; outline: 2px solid #f5b400; }
+  .rw { text-align: left; max-width: 300px; margin: 6px auto 0; font-size: 14px; color: #3a4a58; }
+  .rw div { display: flex; justify-content: space-between; } .rw .tot { border-top: 1px solid #e3e9ef; margin-top: 3px; padding-top: 3px; font-weight: 800; color: #b07a00; }
+  .msl { text-align: left; max-width: 340px; margin: 6px auto 0; font-size: 13px; color: #3a4a58; }
+  .msl .y { color: #2f9e57; font-weight: 700; } .msl .n { color: #8a96a1; }
+  .hud .coin { background: rgba(15,29,43,.55); padding: 6px 12px; border-radius: 999px; font-size: 15px; font-weight: 800; color: #ffd43b; margin-left: 6px; }
+  .hud .mid { display: flex; align-items: center; }
+  .hud .spd { font-size: 12px; opacity: .8; margin-left: 6px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -92,12 +121,12 @@
 
 <div id="title">
   <div class="tbtns"><button class="round" id="bLang" aria-label="language">A</button><button class="round" id="bTitleSet" aria-label="settings">⚙</button></div>
-  <div class="tcard"><h1 id="titleH1">Tilt Bike</h1><div class="tap" id="tapToStart">Tap to start</div></div>
+  <div class="tcard"><h1 id="titleH1">Fixie Drop</h1><div class="tap" id="tapToStart">Tap to start</div></div>
 </div>
 
 <div class="hud" id="hud">
   <div class="label" id="stageLabel"></div>
-  <div class="timer" id="timer">0.0</div>
+  <div class="mid"><div class="timer" id="timer">0.0</div><div class="coin" id="coinHud">🪙 0</div><div class="coin" id="wearHud" style="display:none">🔧 100%</div><span class="spd" id="spdHud"></span></div>
   <div class="btns">
     <button class="round" id="bView" aria-label="view">🎥</button>
     <button class="round" id="bRestart" aria-label="restart">↻</button>
@@ -135,14 +164,30 @@
 
 <div class="ov" id="ovWorlds"><div class="card">
   <div class="topline"><button class="link" id="bWorldsBack"></button><h2 id="worldsTitle"></h2><span class="small" id="worldsStars"></span></div>
+  <div class="row"><span class="coinbar" id="worldsCoins"></span></div>
   <div class="grid3" id="worldList"></div>
-  <div class="row"><button class="btn sub" id="bWorldsSet"></button></div>
+  <div class="row"><button class="btn" id="bGarage"></button><button class="btn" id="bDaily"></button><button class="btn sub" id="bWorldsSet"></button></div>
 </div></div>
 
 <div class="ov" id="ovStages"><div class="card">
   <div class="topline"><button class="link" id="bStagesBack"></button><h2 id="stagesTitle"></h2><span class="small" id="stagesStars"></span></div>
+  <div class="row"><div class="seg" id="stageMode" style="display:flex;gap:4px;margin-top:8px"></div></div>
   <div class="grid5" id="stageList"></div>
   <p class="small" id="stagesNote"></p>
+</div></div>
+
+<div class="ov" id="ovGarage"><div class="card">
+  <div class="topline"><button class="link" id="bGarageBack"></button><h2 id="garageTitle"></h2><span class="coinbar" id="garageCoins"></span></div>
+  <div id="garageBody"></div>
+</div></div>
+
+<div class="ov" id="ovDaily"><div class="card">
+  <div class="big">📅</div>
+  <h2 id="dailyTitle"></h2>
+  <div class="days" id="dailyDays"></div>
+  <p id="dailyMsg"></p>
+  <p class="small" id="dailyHint"></p>
+  <div class="row"><button class="btn ok" id="bDailyClaim"></button><button class="btn sub" id="bDailyClose"></button></div>
 </div></div>
 
 <div class="ov" id="ovPause"><div class="card">
@@ -156,6 +201,8 @@
   <h2 id="resTitle"></h2>
   <div class="starbig" id="resStars"></div>
   <div class="res" id="resNums"></div>
+  <div class="msl" id="resMissions"></div>
+  <div class="rw" id="resReward"></div>
   <p id="resText"></p>
   <div class="row"><button class="btn ok" id="bNext"></button><button class="btn" id="bAgain"></button><button class="btn sub" id="bList"></button></div>
 </div></div>
@@ -167,6 +214,7 @@
   <div class="setrow"><span id="lblVib"></span><div class="seg" id="segVib"></div></div>
   <div class="setrow"><span id="lblInput"></span><div class="seg" id="segInput"></div></div>
   <div class="setrow"><span id="lblView"></span><div class="seg" id="segView"></div></div>
+  <div class="setrow" id="rowGhost"><span id="lblGhost"></span><div class="seg" id="segGhost"></div></div>
   <div class="setrow"><span id="lblLang"></span><div class="seg" id="segLang"></div></div>
   <div class="row"><button class="btn sub" id="bRecalib"></button><button class="btn sub" id="bDiag"></button><button class="btn warn" id="bReset"></button></div>
 </div></div>
@@ -189,7 +237,9 @@
 
 <script>/*PLANCK*/</script>
 <script>/*I18N*/</script>
+<script>/*STAGEDATA*/</script>
 <script>/*CORE*/</script>
+<script>/*META*/</script>
 <script>/*AUDIO*/</script>
 <script>/*CG*/</script>
 <script>/*APP*/</script>

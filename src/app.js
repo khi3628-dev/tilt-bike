@@ -12,8 +12,9 @@
   const hasMotion = typeof DeviceMotionEvent !== 'undefined';
   const TEST = location.hash === '#test';
   const IMG = {};                            // 그림 (있으면 씀)
-  const LAB = C.IS_LAB ? window.Lab : null;   // [실험실] 효과 실험판에서만 있음
-  const PFX = LAB ? 'tiltlab.' : 'tiltbike.';
+  const LAB = window.Lab || null;              // 효과(실험실·2.0 새 세계)
+  const META = window.Meta || null;            // 2.0 코인·차고·출석·미션·고스트
+  const PFX = C.IS_LAB ? 'tiltlab.' : 'fixiedrop.';
 
   // ---------- 저장 ----------
   const store = {
@@ -21,10 +22,17 @@
     set(k, v) { try { localStorage.setItem(PFX + k, JSON.stringify(v)); } catch (e) { } CG.dataSet(PFX + k, JSON.stringify(v)); }
   };
   const SET = Object.assign({ sound: true, music: true, vib: true, input: null, invert: false, lang: null, view: null }, store.get('set', {}));
-  let PROG = Object.assign({ stars: {}, best: {} }, store.get('prog', {}));
+  let PROG = Object.assign({ stars: {}, best: {}, rstars: {}, rbest: {} }, store.get('prog', {}));
+  let revMode = false;   // 거꾸로 달리기 중인지
   if (SET.view !== 'fp' && SET.view !== 'side') SET.view = isTouchDevice ? 'fp' : 'side';   // 폰 = 1인칭, PC = 옆(3인칭) 추천
   const saveSet = () => store.set('set', SET);
   const saveProg = () => store.set('prog', PROG);
+  let MS = META ? META.normalize(store.get('meta', null)) : null;   // 2.0 저장 (코인·아이템·미션·출석·데미지)
+  const saveMeta = () => { if (MS) store.set('meta', MS); };
+  const SKIN = () => MS && !C.IS_LAB ? META.skin(MS) : { frame: '#2b6cb0', shirt: '#e8553d', helmet: '#ffd23f', frameP: 'steel', wheels: 'std', bars: 'riser', gear: 'mid' };
+  const ghostKey = id => PFX + 'ghost.' + id;
+  const loadGhost = id => { try { return META.unpackGhost(localStorage.getItem(ghostKey(id))); } catch (e) { return null; } };
+  const saveGhost = (id, arr) => { try { localStorage.setItem(ghostKey(id), META.packGhost(arr)); } catch (e) { } };
 
   // ---------- 언어 ----------
   L.set(SET.lang || ((navigator.language || 'en').toLowerCase().startsWith('ko') ? 'ko' : 'en'));
@@ -42,6 +50,8 @@
     $('pauseTitle').textContent = T('pause'); $('bResume').textContent = T('resume'); $('bPRestart').textContent = T('restart'); $('bPList').textContent = T('toList'); $('bPSet').textContent = T('settings');
     $('bAgain').textContent = T('again'); $('bList').textContent = T('toList');
     $('setTitle').textContent = T('settings'); $('bSetBack').textContent = T('back');
+    if ($('lblGhost')) $('lblGhost').textContent = T('ghost');
+    $('bGarageBack').textContent = T('back'); $('garageTitle').textContent = T('garage'); $('dailyTitle').textContent = T('dailyTitle'); $('dailyHint').textContent = T('dailyHint'); $('bDailyClaim').textContent = T('dailyClaim'); $('bDailyClose').textContent = T('close');
     $('lblSound').textContent = T('sound'); $('lblMusic').textContent = T('music'); $('lblVib').textContent = T('vibrate'); $('lblInput').textContent = T('inputLabel'); $('lblLang').textContent = T('language'); $('lblView').textContent = T('view');
     $('bRecalib').textContent = T('recalib'); $('bDiag').textContent = T('diag'); $('bReset').textContent = T('resetProgress');
     $('diagTitle').textContent = T('diag'); $('diagHelp').textContent = T('diagHelp'); $('bDiagCalib').textContent = T('recalib'); $('bDiagClose').textContent = T('close');
@@ -144,7 +154,7 @@
   function useTouch() { Input.mode = isTouchDevice ? 'touch' : 'keys'; SET.input = Input.mode; saveSet(); applyTexts(); openWorlds(); }
 
   // ---------- 화면 전환 ----------
-  const OVS = ['ovInput', 'ovSensorFail', 'ovCalib', 'ovWorlds', 'ovStages', 'ovPause', 'ovResult', 'ovSettings', 'ovDiag'];
+  const OVS = ['ovInput', 'ovSensorFail', 'ovCalib', 'ovWorlds', 'ovStages', 'ovPause', 'ovResult', 'ovSettings', 'ovDiag', 'ovGarage', 'ovDaily'];
   function show(id) { for (const o of OVS) $(o).classList.toggle('show', o === id); $('title').classList.toggle('show', id === 'title'); }
   function anyOverlay() { return OVS.some(o => $(o).classList.contains('show')) || $('title').classList.contains('show') || $('adCover').classList.contains('show'); }
   function current() { return OVS.find(o => $(o).classList.contains('show')) || ($('title').classList.contains('show') ? 'title' : null); }
@@ -154,7 +164,7 @@
   const stageIdxOfWorld = w => [...Array(C.stageCount).keys()].filter(i => worldOf(i) === w);
   const starsOf = i => PROG.stars[i] || 0;
   const totalStars = () => Object.values(PROG.stars).reduce((a, b) => a + b, 0);
-  const unlocked = i => LAB || (TEST && window.__unlockAll) ? true : (i === 0 || starsOf(i - 1) > 0);
+  const unlocked = i => C.IS_LAB || (TEST && window.__unlockAll) ? true : (i === 0 || starsOf(i - 1) > 0);
   const worldUnlocked = w => unlocked(stageIdxOfWorld(w)[0]);
   const worldStars = w => stageIdxOfWorld(w).reduce((a, i) => a + starsOf(i), 0);
 
@@ -174,7 +184,9 @@
     if (playing && !demo) CG.gameplayStop();   // 플레이 중 다시 하기: 먼저 끝냈다고 알림
     stageIdx = i;
     fall = null;
-    sim = new C.Sim(i);
+    revMode = opts && opts.demo ? false : opts && 'reverse' in opts ? !!opts.reverse : revMode;
+    sim = new C.Sim(i, MS && !C.IS_LAB ? { stats: META.stats(MS), wear: META.wearOf(MS), reverse: revMode } : undefined);
+    run2 = { ghost: MS && MS.ghost && !C.IS_LAB ? loadGhost(sim.def.id) : null, rec: [], recT: 0, coinFx: [] };
     playing = true; paused = false; endT = 0; demo = !!(opts && opts.demo);
     if (LAB) { LAB.reset(sim); LAB.jumpButton(!demo && !!sim.def.jump && isTouchDevice, doJump); }
     const snap = sim.snapshot();
@@ -182,8 +194,10 @@
     if (!demo) {
       $('hud').style.display = 'flex';
       const wn = L.pick(C.WORLDS[sim.def.world].name);
-      $('stageLabel').innerHTML = '<span class="w">' + sim.def.id + '</span> ' + L.pick(sim.def.name);
-      setHint(L.pick(sim.def.hint), 5);
+      $('stageLabel').innerHTML = '<span class="w">' + (revMode ? '↩ ' : '') + sim.def.id + '</span> ' + L.pick(sim.def.name);
+      setHint(L.pick(sim.def.hint) + missionHint(), 6);
+      $('coinHud').style.display = sim.coins.length ? '' : 'none'; $('coinHud').textContent = '🪙 0';
+      wearHud();
       setToast(null);
       const th = Input.mode !== 'tilt';
       $('touchhint').style.opacity = th ? 1 : 0;
@@ -194,6 +208,20 @@
     }
   }
   function doJump() { if (sim && playing && !paused && sim.def.jump && !sim.rail && !anyOverlay()) sim.jump(); }   // 루프 레일 위에서는 점프 안 함
+  let run2 = { ghost: null, rec: [], recT: 0, coinFx: [] };
+  function wearHud() { const el = $('wearHud'); if (!el) return; const w = MS && !C.IS_LAB ? META.wearOf(MS) : 0; el.style.display = w > 0 && sim && sim.def.fx ? '' : 'none'; el.textContent = '🔧 ' + Math.round((1 - w) * 100) + '%'; el.style.color = w > 0.6 ? '#ff8a7a' : w > 0.3 ? '#ffd43b' : '#b9f3c4'; }
+  function missionText(m, d) {
+    if (m.k === 'coins') return T('msCoins').replace('{n}', (d || sim.def).coins ? (d || sim.def).coins.length : 0);
+    if (m.k === 'top') return T('msTop').replace('{v}', Math.round(m.v * 3.6));
+    if (m.k === 'air') return T('msAir').replace('{v}', m.v);
+    if (m.k === 'perfect') return T('msPerfect').replace('{v}', m.v);
+    return T('msNobrake');
+  }
+  function missionHint() {
+    if (!MS || C.IS_LAB || !sim.def.missions.length) return '';
+    const done = MS.missions[sim.def.id] || [];
+    return '\n🎯 ' + sim.def.missions.map((m, k) => (done[k] ? '✓ ' : '') + missionText(m)).join(' · ');
+  }
   function setHint(text, sec) { $('hint').textContent = text; $('hint').style.opacity = 1; hintTimer = sec; }
   function setToast(text, sec) { toastOn = !!text; if (text) $('toast').textContent = text; $('toast').style.opacity = text ? 1 : 0; if (text && sec) setTimeout(() => { if ($('toast').textContent === text) setToast(null); }, sec * 1000); }
   function vibrate(ms) { if (SET.vib && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { } } }
@@ -214,11 +242,20 @@
       const b = document.createElement('button');
       const un = worldUnlocked(wi), ws = worldStars(wi), max = stageIdxOfWorld(wi).length * 3;
       b.className = 'tile world' + (un ? (ws === max ? ' done' : '') : ' locked');
-      b.innerHTML = '<span class="n">' + (un ? (LAB ? '🧪' : ['🏡', '🏜️', '🏔️'][wi]) : '🔒') + '</span><span class="wn">' + L.pick(w.name) + '</span><span class="ws">' + (un ? '★ ' + ws + '/' + max : T('locked')) + '</span>';
+      b.innerHTML = '<span class="n">' + (un ? (C.IS_LAB ? '🧪' : ['🏡', '🏜️', '🏔️', '🧊', '🌧️', '🎢'][wi]) : '🔒') + '</span><span class="wn">' + L.pick(w.name) + '</span><span class="ws">' + (un ? '★ ' + ws + '/' + max : T('locked')) + '</span>';
       b.onclick = () => { A.SFX.click(); if (!un) { setToast(T('lockedWorldToast'), 2); return; } openStages(wi); };
       Lst.appendChild(b);
     });
     $('worldsStars').textContent = '★ ' + totalStars() + '/' + (C.stageCount * 3);
+    $('bGarage').style.display = $('bDaily').style.display = $('worldsCoins').style.display = MS && !C.IS_LAB ? '' : 'none';
+    if (MS && !C.IS_LAB) {
+      $('worldsCoins').textContent = '🪙 ' + MS.coins + (META.wearOf(MS) > 0.3 ? '  🔧 ' + T('repairNeed') : '');
+      const ds = META.dailyState(MS); $('bDaily').textContent = '📅 ' + T('daily') + (ds.canClaim ? ' ●' : '');
+      $('bGarage').textContent = '🛒 ' + T('garage');
+      show('ovWorlds');
+      if (ds.canClaim && !dailyShown && (!TEST || window.__autoDaily)) { dailyShown = true; openDaily(); }
+      return;
+    }
     show('ovWorlds');
   }
   let curWorld = 0;
@@ -227,12 +264,22 @@
     curWorld = w; playing = false; paused = false; $('hud').style.display = 'none'; $('touchhint').style.opacity = 0; A.quiet();
     CG.gameplayStop();
     const Lst = $('stageList'); Lst.innerHTML = '';
+    const canRev = MS && !C.IS_LAB && stageIdxOfWorld(w).some(i => C.parR(C.STAGES[i]().id));
+    const sm = $('stageMode'); sm.innerHTML = ''; sm.style.display = canRev ? '' : 'none';
+    if (canRev) for (const [v, label] of [[false, T('modeForward')], [true, '↩ ' + T('modeReverse')]]) {
+      const bb = document.createElement('button'); bb.textContent = label; bb.className = revMode === v ? 'on' : '';
+      bb.onclick = () => { A.SFX.click(); revMode = v; openStages(w); }; sm.appendChild(bb);
+    }
+    if (!canRev) revMode = false;
+    $('stagesNote').textContent = revMode ? T('reverseNote') : T('stars3');
     for (const i of stageIdxOfWorld(w)) {
-      const d = C.STAGES[i](); const un = unlocked(i), st = starsOf(i);
+      const d = C.STAGES[i]();
+      const has = !revMode || !!C.parR(d.id), un = revMode ? has && starsOf(i) > 0 : unlocked(i), st = revMode ? (PROG.rstars[i] || 0) : starsOf(i);
       const b = document.createElement('button');
       b.className = 'tile' + (un ? (st ? ' done' : '') : ' locked');
-      b.innerHTML = '<span class="n">' + (un ? (d.icon || d.id.split('-')[1]) : '🔒') + '</span>' + L.pick(d.name) + '<span class="stars">' + (st ? '★'.repeat(st) + '☆'.repeat(3 - st) : '') + '</span>';
-      b.onclick = () => { A.SFX.click(); if (!un) { setToast(T('lockedToast'), 2); return; } startStage(i); };
+      if (revMode && !has) { b.innerHTML = '<span class="n">✖</span>' + L.pick(d.name) + '<span class="stars"></span>'; b.className = 'tile locked'; b.onclick = () => setToast(T('noReverse'), 2); Lst.appendChild(b); continue; }
+      b.innerHTML = '<span class="n">' + (un ? (revMode ? '↩' : '') + (d.icon || d.id.split('-')[1]) : '🔒') + '</span>' + L.pick(d.name) + '<span class="stars">' + (st ? '★'.repeat(st) + '☆'.repeat(3 - st) : '') + '</span>' + (MS && !C.IS_LAB && !revMode && d.missions.length ? '<span class="ms">' + d.missions.map((m, k) => ((MS.missions[d.id] || [])[k] ? '🎯' : '·')).join('') + '</span>' : '');
+      b.onclick = () => { A.SFX.click(); if (!un) { setToast(revMode ? T('reverseLocked') : T('lockedToast'), 2); return; } startStage(i, { reverse: revMode }); };
       Lst.appendChild(b);
     }
     $('stagesTitle').textContent = L.pick(C.WORLDS[w].name);
@@ -243,22 +290,24 @@
   function zoneOf(x) { const t = sim.def.tunnel; return t && x > t[0] && x < t[1] ? 'tunnel' : null; }
   function finish() {
     const r = sim.result;
+    const SMAP = revMode ? PROG.rstars : PROG.stars, BMAP = revMode ? PROG.rbest : PROG.best, PARnow = revMode ? C.parR(C.STAGES[stageIdx]().id) : C.PAR[stageIdx];
+    const prevStars0 = SMAP[stageIdx] || 0, prevBest0 = BMAP[stageIdx];
     playing = false;
     CG.gameplayStop();
     A.quiet();
-    const last = stageIdx === C.stageCount - 1;
+    const last = revMode ? nextRev(stageIdx) == null : stageIdx === C.stageCount - 1;
     if (r.ok) {
-      const t = r.time, st = C.stars(stageIdx, t), prev = starsOf(stageIdx);
-      const best = PROG.best[stageIdx];
+      const t = r.time, st = revMode ? C.starsR(stageIdx, t) : C.stars(stageIdx, t), prev = prevStars0;
+      const best = prevBest0;
       const isBest = best == null || t < best;
-      if (isBest) PROG.best[stageIdx] = +t.toFixed(2);
-      if (st > prev) PROG.stars[stageIdx] = st;
+      if (isBest) BMAP[stageIdx] = +t.toFixed(2);
+      if (st > prev) SMAP[stageIdx] = st;
       saveProg();
-      if (st === 3 && prev < 3) CG.happytime();
+      if (st === 3 && prev < 3 && !revMode) CG.happytime();
       $('resIcon').textContent = last && st ? '🏆' : '🏁';
-      $('resTitle').textContent = last && totalStars() >= C.stageCount ? T('allClear') : (sim.def.stopZone ? T('finishedStop') : T('finished'));
+      $('resTitle').textContent = !revMode && last && totalStars() >= C.stageCount ? T('allClear') : (sim.def.stopZone ? T('finishedStop') : T('finished'));
       $('resStars').innerHTML = [0, 1, 2].map(k => '<span class="' + (k < st ? 'lit' : '') + '" style="display:inline-block">★</span>').join('');
-      $('resNums').innerHTML = '<span>' + T('time') + ' <b>' + t.toFixed(1) + 's</b>' + (isBest && best != null ? ' · ' + T('newBest') : '') + '</span>' + (C.PAR[stageIdx] != null ? '<span>' + T('par') + ' <b>' + C.PAR[stageIdx].toFixed(1) + 's</b></span>' : '');
+      $('resNums').innerHTML = '<span>' + T('time') + ' <b>' + t.toFixed(1) + 's</b>' + (isBest && best != null ? ' · ' + T('newBest') : '') + '</span>' + (PARnow != null ? '<span>' + T('par') + ' <b>' + PARnow.toFixed(1) + 's</b></span>' : '');
       $('resText').textContent = last ? T('allClearText') : '';
       $('bNext').textContent = T('next'); $('bNext').style.display = last ? 'none' : '';
       A.SFX.finish(); vibrate([30, 40, 30]);
@@ -281,7 +330,26 @@
       $('bNext').style.display = 'none';
       A.SFX.fail();
     }
+    if (MS && !C.IS_LAB) finishMeta(r, prevStars0, prevBest0, st0(r));
+    else { $('resMissions').innerHTML = ''; $('resReward').innerHTML = ''; }
     show('ovResult');
+  }
+  function st0(r) { return r.ok ? (revMode ? C.starsR(stageIdx, r.time) : C.stars(stageIdx, r.time)) : 0; }
+  const nextRev = i => { for (let k = i + 1; k < C.stageCount; k++) if (C.parR(C.STAGES[k]().id)) return k; return null; };
+  function finishMeta(r, prevStars, prevBest, st) {
+    const id = sim.def.id, ok = !!r.ok;
+    const done = sim.def.missions.map(m => sim.missionDone(m));
+    const before = (MS.missions[id] || []).slice();
+    const rw = META.finishReward(MS, id, { ok, coinsPicked: sim.stats.coins, stars: st, prevStars, done });
+    if (ok && (prevBest == null || r.time < prevBest) && run2.rec.length) { saveGhost(id, run2.rec); }
+    saveMeta();
+    $('resMissions').innerHTML = sim.def.missions.length ? '<b>🎯 ' + T('missions') + '</b>' + sim.def.missions.map((m, k) => {
+      const y = done[k] || before[k]; return '<div class="' + (y ? 'y' : 'n') + '">' + (y ? '✓ ' : '○ ') + missionText(m) + (done[k] && !before[k] ? ' +' + META.REWARD.mission : '') + '</div>';
+    }).join('') : '';
+    const names = { coinsPicked: 'rwCoinsPicked', finish: 'rwFinish', firstClear: 'rwFirstClear', stars: 'rwStars', missions: 'rwMissions' };
+    $('resReward').innerHTML = rw.lines.map(([k, n]) => '<div><span>' + T(names[k]) + '</span><span>+' + n + '</span></div>').join('') +
+      '<div class="tot"><span>🪙 ' + T('rwTotal') + '</span><span>+' + rw.total + ' (' + MS.coins + ')</span></div>';
+    if (rw.total) A.SFX.coin && setTimeout(() => A.SFX.coin(), 300);
   }
 
   // 광고 → 다음 동작
@@ -489,6 +557,40 @@
     }
   }
 
+  // ---------- 2.0: 코인·고스트 그리기 ----------
+  function coinShape(x, y, r, spin) {
+    const w = Math.max(0.15, Math.abs(Math.cos(spin)));
+    ctx.fillStyle = '#f5b400'; ctx.beginPath(); ctx.ellipse(x, y, r * w, r, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#b07a00'; ctx.lineWidth = Math.max(1, r * 0.18); ctx.stroke();
+    ctx.fillStyle = '#ffe28a'; ctx.beginPath(); ctx.ellipse(x - r * 0.25 * w, y - r * 0.3, r * 0.3 * w, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  function drawCoinsSide(dt) {
+    if (!sim.coins.length) return;
+    const tnow = performance.now() / 1000, left = view.x - W / 2 / view.s - 1, right = view.x + W / 2 / view.s + 1;
+    for (const c of sim.coins) if (!c.got && c.x > left && c.x < right) coinShape(sx(c.x), sy(c.y), 0.22 * view.s, tnow * 3 + c.x);
+    for (let i = run2.coinFx.length - 1; i >= 0; i--) {
+      const f = run2.coinFx[i]; f.t += dt; if (f.t > 0.45) { run2.coinFx.splice(i, 1); continue; }
+      ctx.globalAlpha = 1 - f.t / 0.45; coinShape(sx(f.x), sy(f.y + f.t * 2.5), 0.22 * view.s * (1 + f.t), tnow * 12); ctx.globalAlpha = 1;
+    }
+  }
+  function ghostAt(t) {
+    const g = run2.ghost; if (!g || !g.length) return null;
+    const u = t / META.GHOST_DT, i = Math.floor(u); if (i >= g.length - 1) return null;
+    const a = g[i], b = g[i + 1], k = u - i;
+    let da = b[2] - a[2]; da = Math.atan2(Math.sin(da), Math.cos(da));
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + da * k];
+  }
+  function drawGhostSide() {
+    if (demo) return; const gp = ghostAt(sim.time); if (!gp) return;
+    const [x, y, a] = gp, s = view.s, ca = Math.cos(a), sa = Math.sin(a);
+    const P = (lx, ly) => [sx(x + lx * ca - ly * sa), sy(y + lx * sa + ly * ca)];
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff'; ctx.lineCap = 'round';
+    for (const dx of [-0.55, 0.55]) { const w = P(dx, -0.1); ctx.lineWidth = 0.08 * s; ctx.beginPath(); ctx.arc(w[0], w[1], C.R * s * 0.9, 0, Math.PI * 2); ctx.stroke(); }
+    const seg2 = (a1, b1, wdt) => { ctx.lineWidth = wdt * s; ctx.beginPath(); ctx.moveTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke(); };
+    seg2(P(-0.55, -0.1), P(-0.05, 0.14), 0.07); seg2(P(-0.05, 0.14), P(0.38, 0.58), 0.07); seg2(P(0.38, 0.58), P(0.55, -0.1), 0.07); seg2(P(-0.24, 0.66), P(0.06, 1.1), 0.18);
+    const hd = P(0.12, 1.3); ctx.beginPath(); ctx.arc(hd[0], hd[1], 0.16 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   function wp(lx, ly) { const p = sim.chassis.getWorldPoint({ x: lx, y: ly }); return [sx(p.x), sy(p.y)]; }
   function line(a, b, w, color) { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
   function ik(hip, foot, l1, l2, bendSign) {
@@ -500,15 +602,16 @@
     return [hip[0] + Math.cos(k) * l1, hip[1] + Math.sin(k) * l1];
   }
   function drawBike(speed) {
-    const s = view.s;
+    const s = view.s, SK = SKIN(), tire = SK.wheels === 'fat' ? 0.14 : SK.wheels === 'deep' ? 0.07 : 0.09;
     const k = Math.min(1, Math.max(0, (speed - 3) / 10));
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const w of sim.wheels) {
       const p = w.body.getPosition(), a = w.body.getAngle();
       const cx = sx(p.x), cy = sy(p.y), r = C.R * s;
       const om = Math.abs(w.body.getAngularVelocity()) * C.R;
-      ctx.strokeStyle = '#222'; ctx.lineWidth = 0.09 * s;
-      ctx.beginPath(); ctx.arc(cx, cy, r - 0.045 * s, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#222'; ctx.lineWidth = tire * s;
+      ctx.beginPath(); ctx.arc(cx, cy, r - tire / 2 * s, 0, Math.PI * 2); ctx.stroke();
+      if (SK.wheels === 'deep') { ctx.strokeStyle = SK.frame; ctx.lineWidth = 0.1 * s; ctx.beginPath(); ctx.arc(cx, cy, r - 0.13 * s, 0, Math.PI * 2); ctx.stroke(); }
       ctx.strokeStyle = om > 7 ? 'rgba(90,90,90,.35)' : '#777'; ctx.lineWidth = 0.025 * s;
       for (let i = 0; i < 6; i++) { const t = -a + i * Math.PI / 3; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(t) * (r - 0.09 * s), cy + Math.sin(t) * (r - 0.09 * s)); ctx.stroke(); }
       if (om > 7) { ctx.strokeStyle = 'rgba(120,120,120,.35)'; ctx.lineWidth = 0.12 * s; ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2); ctx.stroke(); }
@@ -517,9 +620,13 @@
     const rw = sim.wheels[0].body.getPosition(), fw = sim.wheels[1].body.getPosition();
     const RA = [sx(rw.x), sy(rw.y)], FA = [sx(fw.x), sy(fw.y)];
     const BB = wp(-0.05, 0.14), SEAT = wp(-0.24, 0.56), HEAD = wp(0.38, 0.58), BAR = wp(0.44, 0.72);
-    const fc = '#2b6cb0', fw2 = 0.07 * s;
+    const fc = SK.frame, fw2 = 0.07 * s;
     line(RA, BB, fw2, fc); line(RA, SEAT, fw2, fc); line(SEAT, BB, fw2, fc); line(BB, HEAD, fw2, fc); line(SEAT, HEAD, fw2, fc);
     line(HEAD, FA, fw2, fc); line(HEAD, BAR, 0.06 * s, '#333');
+    if (SK.bars === 'bull') { line(BAR, wp(0.62, 0.73), 0.05 * s, '#333'); line(wp(0.62, 0.73), wp(0.68, 0.82), 0.05 * s, '#333'); }
+    else if (SK.bars === 'drop') { line(BAR, wp(0.56, 0.7), 0.05 * s, '#333'); line(wp(0.56, 0.7), wp(0.57, 0.56), 0.05 * s, '#333'); line(wp(0.57, 0.56), wp(0.49, 0.54), 0.05 * s, '#333'); }
+    if (SK.frameP === 'carbon') { line(BB, HEAD, 0.025 * s, 'rgba(0,0,0,.45)'); line(SEAT, HEAD, 0.025 * s, 'rgba(0,0,0,.45)'); }
+    else if (SK.frameP === 'alu') { line(BB, HEAD, 0.02 * s, 'rgba(255,255,255,.55)'); }
     line(wp(-0.34, 0.6), wp(-0.14, 0.6), 0.08 * s, '#222');
     const HIP = wp(-0.24, 0.66);
     const SH = wp(0.02 + 0.12 * k, 1.12 - 0.14 * k);
@@ -529,13 +636,13 @@
     const legL = 0.43 * s;
     const K2 = ik(HIP, F2, legL, legL, -1);
     line(HIP, K2, 0.1 * s, '#26324a'); line(K2, F2, 0.09 * s, '#26324a');
-    line(HIP, SH, 0.2 * s, '#e8553d');
+    line(HIP, SH, 0.2 * s, SK.shirt);
     const K1 = ik(HIP, F1, legL, legL, -1);
     line(HIP, K1, 0.11 * s, '#33415c'); line(K1, F1, 0.1 * s, '#33415c');
     const EL = ik(SH, BAR, 0.3 * s, 0.3 * s, 1);
-    line(SH, EL, 0.08 * s, '#e8553d'); line(EL, BAR, 0.07 * s, '#f2c29b');
+    line(SH, EL, 0.08 * s, SK.shirt); line(EL, BAR, 0.07 * s, '#f2c29b');
     ctx.fillStyle = '#f2c29b'; ctx.beginPath(); ctx.arc(HD[0], HD[1], 0.15 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffd23f';
+    ctx.fillStyle = SK.helmet;
     const ang = -sim.chassis.getAngle();
     ctx.beginPath(); ctx.arc(HD[0], HD[1], 0.17 * s, Math.PI + ang - 0.2, ang + 0.25); ctx.closePath(); ctx.fill();
   }
@@ -865,6 +972,24 @@
         }
       } });
     }
+    if (sim.coins.length) {
+      const tnow = performance.now() / 1000;
+      for (const c of sim.coins) {
+        if (c.got || c.x < camX - 1 || c.x > camX + 70) continue;
+        const Pc = proj(c.x, c.y, lat(c.x)); if (!Pc || Pc[2] > 70) continue;
+        items.push({ fw: Pc[2] - 0.05, draw() { coinShape(Pc[0], Pc[1], Math.max(1.5, 0.24 * f / Pc[2]), tnow * 3 + c.x); } });
+      }
+    }
+    const gp = !demo && ghostAt(sim.time);
+    if (gp) {
+      const Pg = proj(gp[0], gp[1] + 0.6, lat(gp[0])), Pb = proj(gp[0], gp[1] - 0.35, lat(gp[0]));
+      if (Pg && Pb && Pg[2] > 0.8) items.push({ fw: Pg[2], draw() {
+        const k = f / Pg[2]; ctx.save(); ctx.globalAlpha = 0.4; ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(1, 0.1 * k); ctx.beginPath(); ctx.ellipse(Pb[0], Pb[1] - 0.05 * k, 0.08 * k, 0.32 * k, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = Math.max(2, 0.36 * k); ctx.beginPath(); ctx.moveTo(Pg[0], Pg[1] + 0.4 * k); ctx.lineTo(Pg[0], Pg[1] - 0.15 * k); ctx.stroke();
+        ctx.beginPath(); ctx.arc(Pg[0], Pg[1] - 0.45 * k, 0.17 * k, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      } });
+    }
     const lg = LAB ? { ctx, sim, proj, lat, f, HW, rd, W, H, dt } : null;
     if (LAB) { for (const it of LAB.fpItems(lg)) items.push(it); LAB.fogBegin(def); }
     items.sort((a, b) => b.fw - a.fw);
@@ -890,7 +1015,8 @@
     ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = s * 0.045;
     ctx.beginPath(); ctx.arc(cxh, by + s * 0.33, s * 0.2, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke();
     // 포크·스템
-    ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = s * 0.03;
+    const SK = SKIN();
+    ctx.strokeStyle = SK.frame; ctx.lineWidth = s * 0.03;
     ctx.beginPath(); ctx.moveTo(cxh - s * 0.05, by + s * 0.2); ctx.lineTo(cxh - s * 0.02, by + s * 0.02); ctx.moveTo(cxh + s * 0.05, by + s * 0.2); ctx.lineTo(cxh + s * 0.02, by + s * 0.02); ctx.stroke();
     ctx.strokeStyle = '#333'; ctx.lineWidth = s * 0.035;
     ctx.beginPath(); ctx.moveTo(cxh, by + s * 0.03); ctx.lineTo(cxh, by - s * 0.02); ctx.stroke();
@@ -898,6 +1024,8 @@
     const gx = s * 0.36, gy = by - s * 0.035;
     ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = s * 0.03;
     ctx.beginPath(); ctx.moveTo(cxh - gx, gy); ctx.quadraticCurveTo(cxh, by - s * 0.06, cxh + gx, gy); ctx.stroke();
+    if (SK.bars === 'bull') for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cxh + sd * gx, gy); ctx.quadraticCurveTo(cxh + sd * gx * 1.12, gy - s * 0.02, cxh + sd * gx * 1.02, gy - s * 0.12); ctx.stroke(); }
+    else if (SK.bars === 'drop') for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cxh + sd * gx, gy); ctx.quadraticCurveTo(cxh + sd * gx * 1.15, gy + s * 0.05, cxh + sd * gx * 1.0, gy + s * 0.12); ctx.stroke(); }
     // 브레이크 레버 (반대로 기울이면 당겨짐)
     ctx.strokeStyle = '#9aa3ad'; ctx.lineWidth = s * 0.012;
     for (const sd of [-1, 1]) {
@@ -909,7 +1037,7 @@
     // 팔과 장갑
     for (const sd of [-1, 1]) {
       const hx = cxh + sd * gx * 0.92, hy = gy;
-      ctx.strokeStyle = '#e8553d'; ctx.lineWidth = s * 0.11;
+      ctx.strokeStyle = SK.shirt; ctx.lineWidth = s * 0.11;
       ctx.beginPath(); ctx.moveTo(cxh + sd * s * 0.62, H + s * 0.08); ctx.lineTo(hx + sd * s * 0.05, hy + s * 0.07); ctx.stroke();
       ctx.strokeStyle = '#f2c29b'; ctx.lineWidth = s * 0.075;
       ctx.beginPath(); ctx.moveTo(hx + sd * s * 0.05, hy + s * 0.07); ctx.lineTo(hx + sd * s * 0.015, hy + s * 0.025); ctx.stroke();
@@ -948,7 +1076,7 @@
     drawTerrain();
     const lg = LAB ? { ctx, sx, sy, s: view.s, sim, W, H, dt, left: view.x - W / 2 / view.s - 2, right: view.x + W / 2 / view.s + 2 } : null;
     if (LAB) LAB.sideTerrain(lg);
-    drawProps(); drawBike(snap.speed);
+    drawProps(); drawCoinsSide(dt); drawGhostSide(); drawBike(snap.speed);
     if (LAB) LAB.sideParticles(lg);
     ctx.restore();
     drawWind(snap.speed, snap.vx, snap.wind, dt);
@@ -990,6 +1118,8 @@
     const inputs = isTouchDevice ? [['tilt', T('inputTilt')], ['touch', T('inputTouch')]] : [['keys', T('inputKeys')]];
     seg('segInput', inputs, Input.mode, v => { if (v === 'tilt') enableTilt(); else { Input.mode = v; SET.input = v; saveSet(); applyTexts(); } });
     seg('segLang', [['ko', '한국어'], ['en', 'English']], L.lang, v => { L.set(v); SET.lang = v; saveSet(); applyTexts(); });
+    if (MS && !C.IS_LAB) seg('segGhost', [[true, T('on')], [false, T('off')]], MS.ghost, v => { MS.ghost = v; saveMeta(); });
+    $('rowGhost').style.display = MS && !C.IS_LAB ? '' : 'none';
     seg('segView', [['fp', T('viewFP') + ' · ' + T('recMobile')], ['side', T('viewSide') + ' · ' + T('recPC')]], SET.view === 'side' ? 'side' : 'fp', v => { SET.view = v; saveSet(); applyTexts(); });
     $('bRecalib').style.display = Input.mode === 'tilt' && SET.view === 'side' ? '' : 'none';
     $('bDiag').style.display = isTouchDevice ? '' : 'none';
@@ -1013,12 +1143,21 @@
       sim.step(phiDeg * DEG, dt);
       for (const ev of sim.drainEvents()) {
         if (ev.t === 'jump') A.SFX.jump();
-        else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); if (LAB && ev.grade) { LAB.onLand(ev, L.lang); A.SFX.grade && A.SFX.grade(ev.grade); if (ev.grade === 'bad') vibrate([30, 20, 40]); } }
+        else if (ev.t === 'coin') { A.SFX.coin && A.SFX.coin(); const c = sim.coins[ev.i]; run2.coinFx.push({ x: c.x, y: c.y, t: 0 }); $('coinHud').textContent = '🪙 ' + sim.stats.coins; }
+        else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); if (LAB && ev.grade) { LAB.onLand(ev, L.lang); if (sim.def.fx || sim.def.lab) { A.SFX.grade && A.SFX.grade(ev.grade); if (ev.grade === 'bad') vibrate([30, 20, 40]); } }
+          if (MS && !C.IS_LAB && sim.def.fx && ev.grade) {   // 2.0: 공중 조작이 되는 판에서만 착지 데미지가 쌓임
+            const w0 = META.wearOf(MS); META.addWear(MS, ev.grade, ev.rel); const w1 = META.wearOf(MS); saveMeta(); wearHud();
+            if ((w0 < 0.3 && w1 >= 0.3) || (w0 < 0.6 && w1 >= 0.6)) setToast('🔧 ' + T('repairNeed'), 3);
+          } }
         else if (ev.t === 'gate') { A.SFX.gate(); vibrate(10); }
         else if (ev.t === 'bridge') A.SFX.bridge();
         else if (ev.t === 'crash') { if (ev.kind === 'gap' || ev.kind === 'cliff') { startFall(ev.kind); view.shake = 4; } else { A.SFX.crash(); vibrate([40, 30, 60]); view.shake = 10; } }
       }
       $('timer').textContent = sim.time.toFixed(1);
+      if (MS && !C.IS_LAB) {
+        $('spdHud').textContent = Math.round(sim.speed() * 3.6) + 'km/h';
+        run2.recT += dt; if (run2.recT >= META.GHOST_DT) { run2.recT -= META.GHOST_DT; const p = sim.chassis.getPosition(); run2.rec.push([p.x, p.y, sim.chassis.getAngle()]); }
+      }
       if (sim.result) { endT = 0; playing = false; A.quiet(); }
       if (!sim.result && sim.backTime > 1.2 && !toastOn) setToast(T('backToast'), 4);
       A.update(sim.speed(), sim.grounded(), sim.windNow, dt);
@@ -1071,7 +1210,7 @@
   on('bSetBack', () => { resetArmed = false; if (backTo === 'title') openTitle(); else if (backTo === 'ovPause') show('ovPause'); else if (backTo === 'ovStages') openStages(curWorld); else openWorlds(); });
   on('bRecalib', () => { backTo = backTo === 'ovPause' ? 'ovPause' : 'ovSettings'; show('ovCalib'); });
   on('bDiag', () => openDiag('ovSettings'));
-  on('bReset', () => { if (!resetArmed) { resetArmed = true; $('bReset').textContent = T('resetConfirm'); setTimeout(() => { resetArmed = false; if ($('ovSettings').classList.contains('show')) $('bReset').textContent = T('resetProgress'); }, 4000); return; } PROG = { stars: {}, best: {} }; saveProg(); resetArmed = false; setToast(T('resetDone'), 2); openSettings(); });
+  on('bReset', () => { if (!resetArmed) { resetArmed = true; $('bReset').textContent = T('resetConfirm'); setTimeout(() => { resetArmed = false; if ($('ovSettings').classList.contains('show')) $('bReset').textContent = T('resetProgress'); }, 4000); return; } PROG = { stars: {}, best: {}, rstars: {}, rbest: {} }; saveProg(); resetArmed = false; setToast(T('resetDone'), 2); openSettings(); });
   on('bDiagCalib', () => { backTo = 'ovDiag'; show('ovCalib'); });
   on('bInvert', () => { SET.invert = !SET.invert; saveSet(); openDiag(); });
   on('bDiagClose', () => openSettings());
@@ -1083,10 +1222,105 @@
   on('bPRestart', () => { A.SFX.click(); startStage(stageIdx); });
   on('bPList', () => { A.SFX.click(); openStages(worldOf(stageIdx)); });
   on('bPSet', () => { A.SFX.click(); openSettings('ovPause'); });
-  on('bNext', () => { A.SFX.click(); withAd(() => startStage((stageIdx + 1) % C.stageCount)); });
+  on('bNext', () => { A.SFX.click(); withAd(() => startStage(revMode ? (nextRev(stageIdx) != null ? nextRev(stageIdx) : stageIdx) : (stageIdx + 1) % C.stageCount)); });
   on('bAgain', () => { A.SFX.click(); withAd(() => startStage(stageIdx)); });
   on('bList', () => { A.SFX.click(); openStages(worldOf(stageIdx)); });
   function withAdMaybe(fn) { fn(); }   // 플레이 중 다시 하기는 광고 없음
+
+  // ---------- 2.0: 차고 (픽시 만들기: 부품 조립) ----------
+  let dailyShown = false;
+  function drawPreview(cv2, SK) {
+    const W2 = cv2.width, H2 = cv2.height, c = cv2.getContext('2d'), u = H2 / 2.2;
+    c.clearRect(0, 0, W2, H2);
+    const ox = W2 / 2, oy = H2 * 0.78, P = (x, y) => [ox + x * u, oy - y * u];
+    const ln = (a, b, w, col) => { c.strokeStyle = col; c.lineWidth = w * u; c.lineCap = 'round'; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); };
+    const tire = SK.wheels === 'fat' ? 0.15 : SK.wheels === 'deep' ? 0.07 : 0.09, R0 = 0.34;
+    for (const dx of [-0.55, 0.55]) {
+      const [x, y] = P(dx, 0);
+      c.strokeStyle = '#222'; c.lineWidth = tire * u; c.beginPath(); c.arc(x, y, (R0 - tire / 2) * u, 0, Math.PI * 2); c.stroke();
+      if (SK.wheels === 'deep') { c.strokeStyle = SK.frame; c.lineWidth = 0.1 * u; c.beginPath(); c.arc(x, y, (R0 - 0.13) * u, 0, Math.PI * 2); c.stroke(); }
+      c.strokeStyle = '#999'; c.lineWidth = 0.02 * u; for (let k = 0; k < 6; k++) { const t = k * Math.PI / 3; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(t) * (R0 - 0.1) * u, y + Math.sin(t) * (R0 - 0.1) * u); c.stroke(); }
+    }
+    const RA = P(-0.55, 0), FA = P(0.55, 0), BB = P(-0.05, 0.14), SEAT = P(-0.24, 0.56), HEAD = P(0.38, 0.58), BAR = P(0.44, 0.72), fc = SK.frame, fw = SK.frameP === 'carbon' ? 0.09 : 0.07;
+    ln(RA, BB, fw, fc); ln(RA, SEAT, fw, fc); ln(SEAT, BB, fw, fc); ln(BB, HEAD, fw, fc); ln(SEAT, HEAD, fw, fc); ln(HEAD, FA, fw, fc);
+    if (SK.frameP === 'carbon') { ln(BB, HEAD, 0.025, 'rgba(0,0,0,.45)'); ln(SEAT, HEAD, 0.025, 'rgba(0,0,0,.45)'); } else if (SK.frameP === 'alu') ln(BB, HEAD, 0.02, 'rgba(255,255,255,.6)');
+    ln(HEAD, BAR, 0.06, '#333');
+    if (SK.bars === 'bull') { ln(BAR, P(0.62, 0.73), 0.05, '#333'); ln(P(0.62, 0.73), P(0.68, 0.82), 0.05, '#333'); }
+    else if (SK.bars === 'drop') { ln(BAR, P(0.56, 0.7), 0.05, '#333'); ln(P(0.56, 0.7), P(0.57, 0.56), 0.05, '#333'); ln(P(0.57, 0.56), P(0.49, 0.54), 0.05, '#333'); }
+    else ln(BAR, P(0.4, 0.8), 0.05, '#333');
+    ln(P(-0.34, 0.6), P(-0.14, 0.6), 0.08, '#222');
+    const ring = SK.gear === 'heavy' ? 0.16 : SK.gear === 'light' ? 0.09 : 0.12;   // 앞 톱니 크기 = 기어비
+    c.strokeStyle = '#666'; c.lineWidth = 0.035 * u; c.beginPath(); c.arc(BB[0], BB[1], ring * u, 0, Math.PI * 2); c.stroke();
+  }
+  function openGarage() {
+    const b = $('garageBody'); b.innerHTML = '';
+    $('garageCoins').textContent = '🪙 ' + MS.coins;
+    // 위: 미리보기 + 성능 막대 + 수리
+    const top = document.createElement('div'); top.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center';
+    const cv2 = document.createElement('canvas'); cv2.width = 220; cv2.height = 130; cv2.style.cssText = 'width:220px;height:130px;background:#eef4f9;border-radius:12px';
+    drawPreview(cv2, SKIN()); top.appendChild(cv2);
+    const rt = META.ratings(META.stats(MS)), w = META.wearOf(MS);
+    const bars = document.createElement('div'); bars.className = 'gbike'; bars.style.cssText = 'min-width:200px;border:0;background:none';
+    bars.innerHTML = [['speed', 'stSpeed'], ['rough', 'stRough'], ['ice', 'stIce'], ['air', 'stAir'], ['brake', 'stBrake'], ['wind', 'stWind']].map(([k, t]) =>
+      '<div class="bar"><span>' + T(t) + '</span><i><s style="width:' + rt[k] * 20 + '%;background:' + (rt[k] > 3 ? '#2f9e57' : rt[k] < 3 ? '#e0a500' : '#8aa4bb') + '"></s></i></div>').join('') +
+      '<div class="bar"><span>🔧</span><i><s style="width:' + Math.round((1 - w) * 100) + '%;background:' + (w > 0.6 ? '#c94834' : w > 0.3 ? '#e0a500' : '#2f9e57') + '"></s></i></div>';
+    if (w > 0) {
+      const cost = META.repairCost(MS), rb = document.createElement('button');
+      rb.className = 'btn warn'; rb.style.cssText = 'padding:6px 10px;font-size:13px;margin:6px 0 0'; rb.textContent = '🔧 ' + T('repair') + ' 🪙 ' + cost; rb.disabled = MS.coins < cost;
+      rb.onclick = () => { if (META.repair(MS)) { A.SFX.buy && A.SFX.buy(); saveMeta(); setToast(T('repairDone'), 1.5); openGarage(); } };
+      bars.appendChild(rb);
+    }
+    top.appendChild(bars); b.appendChild(top);
+    const sec = (k) => { const h = document.createElement('div'); h.className = 'gsec'; h.textContent = T(k); b.appendChild(h); };
+    const tryBuy = (slot, it) => { if (META.buy(MS, slot, it.id)) { A.SFX.buy && A.SFX.buy(); saveMeta(); setToast(T('bought'), 1.5); openGarage(); } else setToast(T('notEnough'), 1.5); };
+    // 부품
+    const NAMES = { frame: 'gFrameP', wheels: 'gWheels', bars: 'gBars', gear: 'gGear', paint: 'gFrame', shirt: 'gShirt', helmet: 'gHelmet' };
+    for (const slot of META.PART_SLOTS) {
+      sec(NAMES[slot]);
+      const g = document.createElement('div'); g.className = 'gbikes'; g.style.gridTemplateColumns = 'repeat(3, 1fr)'; b.appendChild(g);
+      for (const it of META.ITEMS[slot]) {
+        const own = META.owns(MS, slot, it.id), on = MS.eq[slot] === it.id;
+        const c = document.createElement('div'); c.className = 'gbike' + (on ? ' on' : '');
+        c.innerHTML = '<b>' + L.pick(it.name) + '</b><div class="d">' + L.pick(it.desc) + '</div>';
+        const btn = document.createElement('button'); btn.className = 'btn ' + (on ? 'sub' : own ? '' : 'ok'); btn.style.cssText = 'padding:6px 10px;font-size:13px;margin:4px 0 0';
+        if (on) { btn.textContent = T('equipped'); btn.disabled = true; }
+        else if (own) { btn.textContent = T('equip'); btn.onclick = () => { A.SFX.click(); META.equip(MS, slot, it.id); saveMeta(); openGarage(); }; }
+        else { btn.textContent = '🪙 ' + it.price; btn.disabled = MS.coins < it.price; btn.onclick = () => tryBuy(slot, it); }
+        c.appendChild(btn); g.appendChild(c);
+      }
+    }
+    // 색
+    for (const slot of META.COLOR_SLOTS) {
+      sec(NAMES[slot]);
+      const row = document.createElement('div'); row.className = 'gsw'; b.appendChild(row);
+      for (const it of META.ITEMS[slot]) {
+        const own = META.owns(MS, slot, it.id), on = MS.eq[slot] === it.id;
+        const sw = document.createElement('button'); sw.className = 'sw' + (on ? ' on' : '') + (own ? '' : ' locked');
+        sw.innerHTML = '<span class="c" style="background:' + it.c + '"></span>' + (on ? '✓' : own ? '' : it.price < 0 ? '📅' : '🪙' + it.price);
+        sw.onclick = () => { A.SFX.click(); if (own) { META.equip(MS, slot, it.id); saveMeta(); openGarage(); } else if (it.price >= 0) tryBuy(slot, it); else setToast(T('dailyOnly'), 1.5); };
+        row.appendChild(sw);
+      }
+    }
+    show('ovGarage');
+  }
+  // ---------- 2.0: 출석 ----------
+  function openDaily(msg) {
+    const ds = META.dailyState(MS), streakNow = ds.canClaim ? ds.streak - 1 : ds.streak, cur = ds.canClaim ? ds.day : ((ds.streak - 1) % 7) + 1;
+    const doneUpTo = ds.canClaim ? ds.day - 1 : cur;
+    $('dailyDays').innerHTML = [1, 2, 3, 4, 5, 6, 7].map(n => '<div class="' + (n <= doneUpTo ? 'got' : '') + (ds.canClaim && n === ds.day ? ' today' : '') + '">' + T('dailyDay').replace('{n}', n) + '<b>' + (n < 7 ? '🪙' + META.DAILY[n - 1] : '🏆') + '</b></div>').join('');
+    $('dailyMsg').textContent = msg || (ds.canClaim ? '' : T('dailyDone'));
+    $('bDailyClaim').style.display = ds.canClaim ? '' : 'none';
+    show('ovDaily');
+  }
+  on('bGarage', () => { A.SFX.click(); openGarage(); });
+  on('bGarageBack', () => { A.SFX.click(); openWorlds(); });
+  on('bDaily', () => { A.SFX.click(); openDaily(); });
+  on('bDailyClose', () => { A.SFX.click(); openWorlds(); });
+  on('bDailyClaim', () => {
+    const r = META.claimDaily(MS); if (!r) return;
+    saveMeta(); A.SFX.daily && A.SFX.daily();
+    openDaily(r.coins ? T('dailyGot').replace('{n}', r.coins) : T('dailyGold'));
+  });
 
   cv.addEventListener('pointerdown', e => { A.ensure(); if (LAB && Input.mode !== 'touch') doJump(); if (Input.mode === 'touch' && playing) { Input.touchX = e.clientX; try { cv.setPointerCapture(e.pointerId); } catch (_) { } } });
   cv.addEventListener('pointermove', e => { if (Input.mode === 'touch' && Input.touchX != null) Input.touchX = e.clientX; });
@@ -1140,9 +1374,10 @@
     if (CG.active()) {
       // 계정 저장이 있으면 그걸로, 없으면 이 브라우저 기록을 올림
       try {
-        const p = await CG.dataGet('tiltbike.prog');
-        if (p) { PROG = Object.assign({ stars: {}, best: {} }, JSON.parse(p)); try { localStorage.setItem('tiltbike.prog', p); } catch (e) { } }
+        const p = await CG.dataGet(PFX + 'prog');
+        if (p) { PROG = Object.assign({ stars: {}, best: {} }, JSON.parse(p)); try { localStorage.setItem(PFX + 'prog', p); } catch (e) { } }
         else saveProg();
+        if (MS) { const q = await CG.dataGet(PFX + 'meta'); if (q) { MS = META.normalize(JSON.parse(q)); try { localStorage.setItem(PFX + 'meta', q); } catch (e) { } } else saveMeta(); }
       } catch (e) { }
     }
     if (!TEST || window.__images) loadImages();

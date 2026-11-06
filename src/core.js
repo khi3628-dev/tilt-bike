@@ -514,16 +514,36 @@
   // ---------- 시뮬레이션 ----------
   // 자전거 성능 (1 = 기본). drag: 공기저항(작을수록 최고 속도↑), rr: 보통 길 구름 저항, rough: 돌길·진흙 저항, slip: 얼음 미끄럼, jump: 점프 힘, air: 공중 회전
   const BIKES = {
-    city: { drag: 1, rr: 1, rough: 1, slip: 1, jump: 1, air: 1 },
+    city: { drag: 1, rr: 1, rough: 1, slip: 1, jump: 1, air: 1, brake: 1, gust: 1 },
     road: { drag: 0.84, rr: 0.8, rough: 1.6, slip: 1.25, jump: 0.95, air: 1 },
     mtb: { drag: 1.1, rr: 1.1, rough: 0.55, slip: 0.55, jump: 1, air: 1 },
     bmx: { drag: 1.12, rr: 1.05, rough: 1, slip: 1, jump: 1.3, air: 1.35 }
   };
+  // 거꾸로 달리기: 코스를 좌우로 뒤집어 끝→처음 방향으로 (화면에서는 그대로 오른쪽으로 감). 검문소 판은 안 됨. 점프 허용
+  function mirrorDef(d) {
+    let X0 = -Infinity; for (const pc of d.t.pieces) for (const p of pc) X0 = Math.max(X0, p[0]);
+    const mx = x => X0 - x;
+    let pieces = d.t.pieces.slice().reverse().map(pc => pc.slice().reverse().map(([x, y]) => [mx(x), y]));
+    pieces = pieces.map(pc => pc.filter((p, k) => !(k === 0 && pc.length > 1 && p[1] < pc[1][1] - 20) && !(k === pc.length - 1 && k > 0 && p[1] < pc[k - 1][1] - 20)));   // 끝 낭떠러지 벽 빼기
+    const last = pieces[pieces.length - 1], lp = last[last.length - 1]; last.push([lp[0] + 30, lp[1]]);
+    const marks = {}; for (const k in d.t.marks) marks[k] = { x: mx(d.t.marks[k].x), y: d.t.marks[k].y };
+    const t = { pieces, marks, loops: (d.loops || []).map(L => ({ path: L.path.slice().reverse().map(([x, y]) => [mx(x), y]), top: L.path.length - 1 - L.top, x0: mx(L.x1), x1: mx(L.x0), y0: L.y0, y1: L.y1, xTop: mx(L.xTop), xIn: mx(L.xOut), xOut: mx(L.xIn), r: L.r })),
+      blocks: (d.blocks || []).map(b => ({ x0: mx(b.x1), x1: mx(b.x0), y: b.y, h: b.h })) };
+    const end0 = d.finish != null ? d.finish : d.stopZone.x1 + 2;
+    return def({ id: d.id + 'R', world: d.world, theme: d.theme, fx: d.fx, reverse: true, jump: true, name: d.name, hint: { ko: '거꾸로! 끝에서 처음으로 달려요. 점프(터치·스페이스)도 돼요.', en: 'Reversed! Ride from the end back to the start. Jumping (tap/Space) allowed.' },
+      t, start: Math.max(3, mx(end0)), finish: lp[0] + 10, coins: [], missions: [],
+      gaps: d.gaps.map(g => Object.assign({}, g, { x0: mx(g.x1), x1: mx(g.x0) })),
+      ceil: d.ceil.map(c => c.slice().reverse().map(([x, y]) => [mx(x), y])), rockTop: d.rockTop, tunnel: d.tunnel ? [mx(d.tunnel[1]), mx(d.tunnel[0])] : undefined,
+      bridges: d.bridges.map(b => ({ x0: mx(b.x1), x1: mx(b.x0), y: b.y })), winds: d.winds.map(w => Object.assign({}, w, { x0: mx(w.x1), x1: mx(w.x0), f: -w.f })),
+      surfaces: (d.surfaces || []).map(sf => ({ x0: mx(sf.x1), x1: mx(sf.x0), type: sf.type })), env: d.env,
+      loops: t.loops, blocks: t.blocks, signs: [] });
+  }
+  const canReverse = d => !d.gates.length && !d.lab;
   function Sim(stageIndex, opts) {
-    const def = STAGES[stageIndex]();
-    this.def = def; this.index = stageIndex;
     opts = opts || {};
-    const bk = Object.assign({}, BIKES.city, BIKES[opts.bike] || {}), wear = Math.max(0, Math.min(1, opts.wear || 0));
+    const def = opts.reverse ? mirrorDef(STAGES[stageIndex]()) : STAGES[stageIndex]();
+    this.def = def; this.index = stageIndex; this.reverse = !!opts.reverse;
+    const bk = Object.assign({}, BIKES.city, BIKES[opts.bike] || {}, opts.stats || {}), wear = Math.max(0, Math.min(1, opts.wear || 0));
     bk.drag *= 1 + 0.12 * wear; bk.rr *= 1 + 0.6 * wear;   // 망가진 자전거: 최고 속도 약 −5%, 구름 저항 ↑ (최대 약 −10% 성능)
     this.bike = bk;
     this.stats = { maxSp: 0, air: 0, minPhi: 0, perfect: 0, good: 0, bad: 0, coins: 0 };
@@ -703,6 +723,11 @@
       if (S0.brake && along < 0) ch.applyForceToCenter(Vec2(-S0.brake * this.mass * along * tx, -S0.brake * this.mass * along * ty), true);
       if (S0.visc) ch.applyForceToCenter(Vec2(-S0.visc * this.bike.rough * this.mass * v.x, -S0.visc * this.bike.rough * this.mass * v.y), true);
     }
+    // 픽시 페달로 버티기: 뒤로 젖히면 기어에 따라 더 잘(가벼운 기어) / 덜(무거운 기어) 멈춤
+    if (this.bike.brake !== 1 && gnd > 0 && this.phi < 0 && sp > 0.4) {
+      const fb = (this.bike.brake - 1) * this.mass * G * Math.sin(-this.phi) * 0.5;
+      ch.applyForceToCenter(Vec2(-fb * v.x / sp, -fb * v.y / sp), true);
+    }
     // 기록: 최고 속도·공중 시간·가장 많이 젖힌 기울기 / 코인 줍기
     const stt = this.stats; if (sp > stt.maxSp) stt.maxSp = sp; if (gnd === 0) stt.air += DT; if (this.phi < stt.minPhi) stt.minPhi = this.phi;
     for (let ci = 0; ci < this.coins.length; ci++) { const c = this.coins[ci]; if (c.got || Math.abs(c.x - p.x) > 1.3) continue; if ((c.x - p.x) ** 2 + (c.y - p.y - 0.5) ** 2 < 0.95 * 0.95) { c.got = true; stt.coins++; this.events.push({ t: 'coin', i: ci }); } }
@@ -711,7 +736,7 @@
     for (const w of this.def.winds) if (p.x >= w.x0 && p.x <= w.x1) {
       let f = w.f;
       if (w.gust) { const t = this.time; f = w.f + w.gust * Math.sin(2 * Math.PI * t / (w.per || 3)) * (0.65 + 0.35 * Math.sin(2 * Math.PI * t / 1.3 + 1)); }
-      this.windNow = f; ch.applyForceToCenter(Vec2(f * this.mass, 0), true);
+      f *= this.bike.gust; this.windNow = f; ch.applyForceToCenter(Vec2(f * this.mass, 0), true);
     }
     // 루프: 꼭대기를 지나면 뒤 반쪽과 부딪히게, 빠져나가면 원래대로
     for (const L of this.loops) {
@@ -826,7 +851,9 @@
     if (m.k === 'perfect') return s.perfect >= m.v;
     return false;
   };
-  const api = { Sim, STAGES, WORLDS, PAR, stars, BIKES, LAB, IS_LAB, G, MAX_TILT, R, groundYAt, stageCount: STAGES.length };
+  const parR = id => (SD.rev && SD.rev[id + 'R']) || null;   // 거꾸로 판 기준 시간 (없으면 거꾸로 못 함)
+  const starsR = (index, time) => { const par = parR(STAGES[index]().id) || 999; return time <= par ? 3 : time <= par * 1.4 ? 2 : 1; };
+  const api = { Sim, STAGES, WORLDS, PAR, stars, starsR, parR, mirrorDef, canReverse, BIKES, LAB, IS_LAB, G, MAX_TILT, R, groundYAt, stageCount: STAGES.length };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TiltCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
