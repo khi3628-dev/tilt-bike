@@ -16,7 +16,7 @@
     get(k, d) { try { const v = localStorage.getItem('tiltbike.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('tiltbike.' + k, JSON.stringify(v)); } catch (e) { } CG.dataSet('tiltbike.' + k, JSON.stringify(v)); }
   };
-  const SET = Object.assign({ sound: true, music: true, vib: true, input: null, invert: false, lang: null }, store.get('set', {}));
+  const SET = Object.assign({ sound: true, music: true, vib: true, input: null, invert: false, lang: null, view: 'fp' }, store.get('set', {}));
   let PROG = Object.assign({ stars: {}, best: {} }, store.get('prog', {}));
   const saveSet = () => store.set('set', SET);
   const saveProg = () => store.set('prog', PROG);
@@ -37,7 +37,7 @@
     $('pauseTitle').textContent = T('pause'); $('bResume').textContent = T('resume'); $('bPRestart').textContent = T('restart'); $('bPList').textContent = T('toList'); $('bPSet').textContent = T('settings');
     $('bAgain').textContent = T('again'); $('bList').textContent = T('toList');
     $('setTitle').textContent = T('settings'); $('bSetBack').textContent = T('back');
-    $('lblSound').textContent = T('sound'); $('lblMusic').textContent = T('music'); $('lblVib').textContent = T('vibrate'); $('lblInput').textContent = T('inputLabel'); $('lblLang').textContent = T('language');
+    $('lblSound').textContent = T('sound'); $('lblMusic').textContent = T('music'); $('lblVib').textContent = T('vibrate'); $('lblInput').textContent = T('inputLabel'); $('lblLang').textContent = T('language'); $('lblView').textContent = T('view');
     $('bRecalib').textContent = T('recalib'); $('bDiag').textContent = T('diag'); $('bReset').textContent = T('resetProgress');
     $('diagTitle').textContent = T('diag'); $('diagHelp').textContent = T('diagHelp'); $('bDiagCalib').textContent = T('recalib'); $('bDiagClose').textContent = T('close');
     $('rotTitle').textContent = T('rotateTitle'); $('rotText').innerHTML = T('rotateText'); $('bPortraitOk').textContent = T('rotateAnyway');
@@ -512,6 +512,272 @@
       ctx.beginPath(); ctx.moveTo(w.x * W, w.y * H); ctx.lineTo(w.x * W + len, w.y * H); ctx.stroke();
     }
   }
+  // ---------- 1인칭 (롤러코스터) ----------
+  // 물리는 그대로 2D. 라이더 눈 위치에서 앞(+x)을 보고, 길의 높낮이를 원근으로 펼쳐 그림.
+  const FP_ROAD = [ { road: '#6b6f78', road2: '#737781', line: '#f4f4f4', rumbleA: '#ffffff', rumbleB: '#e8553d', grassB: '#45a049' },
+                    { road: '#a0623a', road2: '#a9693f', line: '#ffe2b8', rumbleA: '#fff2d6', rumbleB: '#c9542a', grassB: '#cf8e45' },
+                    { road: '#5b6579', road2: '#636d82', line: '#e9f1fa', rumbleA: '#ffffff', rumbleB: '#3b82c4', grassB: '#dbe5f2' } ];
+  const fp = { pitch: 0, kick: 0, bob: 0, cache: null, cacheFor: null };
+  function fpCache() {
+    if (fp.cacheFor === sim) return fp.cache;
+    const pcs = sim.def.t.pieces;
+    let x0 = Infinity, x1 = -Infinity;
+    for (const pc of pcs) for (const p of pc) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); }
+    x0 -= 40;                                // 출발점 왼쪽 땅(그림만)
+    const step = 0.1, n = Math.ceil((x1 - x0) / step) + 2, ys = new Float32Array(n), cs = new Float32Array(n);
+    const first = pcs[0][0];
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * step;
+      let y = C.groundYAt(pcs, x);
+      if (y == null && x < first[0]) y = first[1];
+      ys[i] = y == null ? NaN : y;
+      let c = NaN;
+      for (const ch of sim.def.ceil) for (let k = 1; k < ch.length; k++) {
+        const [ax, ay] = ch[k - 1], [bx, by] = ch[k];
+        if (x >= ax && x <= bx && bx > ax) { c = ay + (by - ay) * (x - ax) / (bx - ax); break; }
+      }
+      cs[i] = c;
+    }
+    fp.cache = { x0, step, ys, cs }; fp.cacheFor = sim;
+    return fp.cache;
+  }
+  function fpLookup(arr, x) {
+    const c = fp.cache, u = (x - c.x0) / c.step, i = Math.floor(u);
+    if (i < 0 || i >= arr.length - 1) return NaN;
+    const a = arr[i], b = arr[i + 1];
+    if (isNaN(a) || isNaN(b)) return NaN;
+    return a + (b - a) * (u - i);
+  }
+  // 보기 좋게 길을 좌우로 살짝 굽힘 (그림만, 물리와 무관)
+  const curve = x => 3.2 * Math.sin(x / 23) + 1.6 * Math.sin(x / 9.5 + 1.3);
+  const curveD = x => 3.2 / 23 * Math.cos(x / 23) + 1.6 / 9.5 * Math.cos(x / 9.5 + 1.3);
+
+  function renderFP(dt) {
+    const def = sim.def, th = curTheme(), rd = FP_ROAD[def.world];
+    const snap = sim.snapshot();
+    fpCache();
+    const ch = sim.chassis;
+    const eye = ch.getWorldPoint({ x: 0.16, y: 1.45 });
+    let ang = ch.getAngle();
+    while (ang - fp.pitch > Math.PI) ang -= 2 * Math.PI;
+    while (ang - fp.pitch < -Math.PI) ang += 2 * Math.PI;
+    fp.pitch += (ang - fp.pitch) * (1 - Math.exp(-dt / 0.1));
+    fp.kick *= Math.exp(-dt / 0.12);
+    const kz = Math.min(1, snap.speed / 14);
+    const pitch = fp.pitch - 8 * DEG + fp.kick * 0.05;
+    const f = (H / 2) / Math.tan((33 + 9 * kz) * DEG);
+    let shx = 0, shy = 0;
+    if (view.shake > 0) { shx = (Math.random() - 0.5) * view.shake; shy = (Math.random() - 0.5) * view.shake; view.shake = Math.max(0, view.shake - dt * 40); }
+    if (snap.grounded > 0 && snap.speed > 1) { shx += (Math.random() - 0.5) * Math.min(2.5, snap.speed * 0.15); shy += (Math.random() - 0.5) * Math.min(2.5, snap.speed * 0.15); }
+    const cx = W / 2 + shx, cy = H * 0.44 + shy + fp.kick * H * 0.03;
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const camX = eye.x, camY = eye.y, c0 = curve(camX), cd0 = curveD(camX);
+    const lat = x => curve(x) - c0 - cd0 * (x - camX);
+    const proj = (x, y, z) => {
+      const dx = x - camX, dy = y - camY;
+      const fw = dx * cp + dy * sp, up = -dx * sp + dy * cp;
+      if (fw < 0.06) return null;
+      return [cx + f * z / fw, cy - f * up / fw, fw];
+    };
+    // 하늘 + 지평선 (폰 기울기만큼 지평선이 올라가거나 내려감)
+    const phi = phiDeg * DEG;
+    const yh = cy - f * Math.tan(Math.max(-1.2, Math.min(1.2, phi - pitch)));
+    const gr = ctx.createLinearGradient(0, yh - H, 0, yh);
+    gr.addColorStop(0, th.sky0); gr.addColorStop(1, th.sky1);
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+    const img = IMG['bg' + def.world];
+    if (img && img.complete && img.naturalWidth) {
+      const iw = W * 1.35, ih = iw * img.naturalHeight / img.naturalWidth;
+      const per = iw * 2, off = (((camX * 6) % per) + per) % per;
+      const y = yh - ih * 0.62;
+      for (let x = -off - iw; x < W; x += per) {
+        ctx.drawImage(img, x, y, iw, ih);
+        ctx.save(); ctx.translate(x + iw * 2, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, y, iw, ih); ctx.restore();
+      }
+      ctx.fillStyle = th.near; ctx.fillRect(0, y + ih - 1, W, H);
+    } else {
+      ctx.fillStyle = th.far; ctx.fillRect(0, yh, W, H);
+    }
+    // 그릴 것 목록 (먼 것부터)
+    const items = [];
+    const HW = 1.7, RB = 0.32;
+    const xs = [];
+    for (let d = 0.25; d < 80;) { xs.push(camX + d); d += d < 10 ? 0.35 : d < 25 ? 0.7 : d < 45 ? 1.4 : 2.6; }
+    const inZone = (x, z) => z && x >= z.x0 && x <= z.x1;
+    for (let i = 0; i < xs.length - 1; i++) {
+      const xa = xs[i], xb = xs[i + 1];
+      const ya = fpLookup(fp.cache.ys, xa), yb = fpLookup(fp.cache.ys, xb);
+      const ca = fpLookup(fp.cache.cs, xa), cb = fpLookup(fp.cache.cs, xb);
+      const la = lat(xa), lb = lat(xb);
+      if (isNaN(ya) || isNaN(yb)) {
+        // 틈·낭떠러지: 어두운 구덩이
+        const g = def.gaps.find(g => xa >= g.x0 - 0.5 && xa <= g.x1 + 0.5);   // 낭떠러지 너머는 하늘만
+        if (!g) continue;
+        const ly = C.groundYAt(def.t.pieces, g.x0 - 0.3);
+        if (ly == null) continue;
+        const pa = proj(xa, ly - 7, 0), pb = proj(xb, ly - 7, 0);
+        if (!pa || !pb) continue;
+        items.push({ fw: pa[2], draw() { ctx.fillStyle = '#1b1410'; ctx.fillRect(0, Math.min(pb[1], pa[1]) - 1, W, Math.abs(pa[1] - pb[1]) + 2); } });
+        continue;
+      }
+      const A = proj(xa, ya, la), B = proj(xb, yb, lb);
+      if (!A || !B) continue;
+      if (A[1] < B[1] - 0.5) continue;      // 고개 너머(뒷면)
+      const wa = f / A[2], wb = f / B[2];
+      const mid = (xa + xb) / 2;
+      const stripe = Math.floor(mid / 1.2) % 2 === 0;
+      const zoneHere = inZone(mid, def.stopZone) || sim.gates.some(g => !g.open && inZone(mid, g.def.zone));
+      const wind = def.winds.some(w => mid >= w.x0 && mid <= w.x1);
+      const ceil = !isNaN(ca) && !isNaN(cb) ? [proj(xa, ca, la), proj(xb, cb, lb)] : null;
+      items.push({ fw: A[2], draw() {
+        ctx.fillStyle = stripe ? th.grass : rd.grassB;
+        ctx.fillRect(0, B[1] - 0.5, W, A[1] - B[1] + 1.5);
+        const quad = (h0, h1, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(A[0] + h0 * wa, A[1]); ctx.lineTo(A[0] + h1 * wa, A[1]); ctx.lineTo(B[0] + h1 * wb, B[1] + 0.5); ctx.lineTo(B[0] + h0 * wb, B[1] + 0.5); ctx.closePath(); ctx.fill(); };
+        quad(-HW - RB, HW + RB, stripe ? rd.rumbleA : rd.rumbleB);
+        quad(-HW, HW, zoneHere ? (stripe ? '#ffd43b' : '#f5c518') : (stripe ? rd.road : rd.road2));
+        if (stripe && !zoneHere) quad(-0.06, 0.06, rd.line);
+        if (wind) { ctx.globalAlpha = 0.18; quad(-HW, HW, '#ffffff'); ctx.globalAlpha = 1; }
+        if (ceil && ceil[0] && ceil[1]) {
+          const [P, Q] = ceil;
+          ctx.fillStyle = stripe ? th.rock : th.rock2;
+          ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(W, -10); ctx.lineTo(W, Q[1]); ctx.lineTo(0, Q[1]); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = stripe ? th.rock : th.rock2;
+          ctx.fillRect(0, Math.min(P[1], Q[1]) - 0.5, W, Math.abs(P[1] - Q[1]) + 1);
+        }
+      } });
+    }
+    // 다리 판자
+    for (const br of sim.bridges) {
+      const w = (br.def.x1 - br.def.x0) / br.planks.length;
+      for (const pl of br.planks) {
+        const p = pl.body.getPosition(), l = lat(p.x);
+        const A = proj(p.x - w / 2, p.y + 0.12, l), B = proj(p.x + w / 2, p.y + 0.12, l);
+        if (!A || !B) continue;
+        items.push({ fw: A[2], draw() {
+          const wa = f / A[2], wb = f / B[2];
+          ctx.fillStyle = pl.fallen ? '#5e4129' : '#8a5a34';
+          ctx.beginPath(); ctx.moveTo(A[0] - HW * wa, A[1]); ctx.lineTo(A[0] + HW * wa, A[1]); ctx.lineTo(B[0] + HW * wb, B[1]); ctx.lineTo(B[0] - HW * wb, B[1]); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = Math.max(1, 0.05 * wa); ctx.stroke();
+        } });
+      }
+    }
+    const pole = (x, z, h, color, w) => {
+      const gy = fpLookup(fp.cache.ys, x); if (isNaN(gy)) return null;
+      const P = proj(x, gy, lat(x) + z), Q = proj(x, gy + h, lat(x) + z);
+      if (!P || !Q) return null;
+      return { P, Q, fw: P[2], draw() { ctx.strokeStyle = color || '#5b4636'; ctx.lineWidth = Math.max(1.5, (w || 0.1) * f / P[2]); ctx.beginPath(); ctx.moveTo(P[0], P[1]); ctx.lineTo(Q[0], Q[1]); ctx.stroke(); } };
+    };
+    // 표지판 (길 오른쪽)
+    for (const sg of def.signs) {
+      const pl = pole(sg.x, 2.7, 1.6); if (!pl) continue;
+      items.push({ fw: pl.fw, draw() {
+        pl.draw();
+        const s = f / pl.fw, r = 0.5 * s, bx = pl.Q[0], by = pl.Q[1] - r * 0.6;
+        const col = { rabbit: '#e07b00', turtle: '#2f8f4e', wind: '#3b82c4', stop: '#c94834' }[sg.kind];
+        ctx.fillStyle = '#fff'; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, 0.09 * s);
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx - r, by - r, r * 2, r * 2, 0.15 * s) : ctx.rect(bx - r, by - r, r * 2, r * 2); ctx.fill(); ctx.stroke();
+        ctx.font = Math.max(6, Math.round(0.64 * s)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        if (sg.kind === 'wind') { ctx.save(); ctx.translate(bx, by); if (sg.dir < 0) ctx.scale(-1, 1); ctx.fillText('💨', 0, 0); ctx.restore(); }
+        else ctx.fillText({ rabbit: '🐇', turtle: '🐢', stop: '🛑' }[sg.kind], bx, by);
+      } });
+    }
+    // 결승 아치
+    if (def.finish != null) {
+      const L = pole(def.finish, -2.4, 3.0, '#333', 0.14), R = pole(def.finish, 2.4, 3.0, '#333', 0.14);
+      if (L && R) items.push({ fw: L.fw, draw() {
+        L.draw(); R.draw();
+        const s = f / L.fw, h = 0.55 * s, n = 10, w = (R.Q[0] - L.Q[0]) / n;
+        for (let r = 0; r < 2; r++) for (let c = 0; c < n; c++) { ctx.fillStyle = (r + c) % 2 ? '#111' : '#fff'; ctx.fillRect(L.Q[0] + c * w, L.Q[1] + r * h / 2, w + 0.5, h / 2 + 0.5); }
+      } });
+    }
+    // 멈춤 구역 깃발 + 글씨
+    const zoneFlags = (z, label) => {
+      for (const x of [z.x0, z.x1]) for (const side of [-2.3, 2.3]) {
+        const pl = pole(x, side, 2.2, '#333', 0.08); if (!pl) continue;
+        items.push({ fw: pl.fw, draw() { pl.draw(); const s = f / pl.fw; ctx.fillStyle = '#ffd43b'; ctx.beginPath(); ctx.moveTo(pl.Q[0], pl.Q[1]); ctx.lineTo(pl.Q[0] - Math.sign(side) * 0.7 * s, pl.Q[1] + 0.2 * s); ctx.lineTo(pl.Q[0], pl.Q[1] + 0.4 * s); ctx.fill(); } });
+      }
+      if (label) {
+        const mx = (z.x0 + z.x1) / 2, gy = fpLookup(fp.cache.ys, mx); if (isNaN(gy)) return;
+        const P = proj(mx, gy + 3.0, lat(mx)); if (!P) return;
+        items.push({ fw: P[2] - 0.01, draw() {
+          const s = f / P[2]; ctx.font = 'bold ' + Math.max(8, Math.round(0.5 * s)) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          const tw = ctx.measureText(label).width + 0.4 * s;
+          ctx.fillStyle = 'rgba(15,29,43,.75)'; ctx.fillRect(P[0] - tw / 2, P[1] - 0.36 * s, tw, 0.72 * s);
+          ctx.fillStyle = '#ffd43b'; ctx.fillText(label, P[0], P[1]);
+        } });
+      }
+    };
+    if (def.stopZone) zoneFlags(def.stopZone, T('stopHere'));
+    // 검문소 차단기
+    for (const gt of sim.gates) {
+      zoneFlags(gt.def.zone, gt.open ? null : T('stopZone'));
+      const x = gt.def.x, gy = gt.gy, l = lat(x);
+      const base = proj(x, gy, l + 2.3), top = proj(x, gy + 1.15, l + 2.3);
+      if (!base || !top) continue;
+      items.push({ fw: base[2], draw() {
+        const s = f / base[2];
+        ctx.fillStyle = '#444'; ctx.fillRect(base[0] - 0.12 * s, top[1], 0.24 * s, base[1] - top[1]);
+        const a = gt.lift * Math.PI / 2 * 0.92, len = 4.6;
+        const end = proj(x, gy + 1.05 + Math.sin(a) * len, l + 2.3 - Math.cos(a) * len);
+        if (!end) return;
+        const n = 6;
+        for (let k = 0; k < n; k++) {
+          const t0 = k / n, t1 = (k + 1) / n;
+          ctx.strokeStyle = k % 2 ? '#fff' : '#c94834'; ctx.lineWidth = Math.max(2, 0.2 * s); ctx.lineCap = 'butt';
+          ctx.beginPath(); ctx.moveTo(top[0] + (end[0] - top[0]) * t0, top[1] + (end[1] - top[1]) * t0); ctx.lineTo(top[0] + (end[0] - top[0]) * t1, top[1] + (end[1] - top[1]) * t1); ctx.stroke();
+        }
+      } });
+    }
+    items.sort((a, b) => b.fw - a.fw);
+    for (const it of items) it.draw();
+    drawWind(snap.speed, snap.vx, snap.wind, dt);
+    drawHands(snap, dt);
+    if (sim.result && !sim.result.ok) { ctx.fillStyle = 'rgba(201,72,52,' + Math.min(0.35, endT * 0.5) + ')'; ctx.fillRect(0, 0, W, H); }
+  }
+
+  // 핸들과 두 손
+  function drawHands(snap, dt) {
+    const s = Math.min(W * 0.78, H * 1.45);
+    const brake = phiDeg < -4 ? Math.min(1, (-phiDeg - 4) / 12) : 0;
+    fp.bob += dt * (2 + snap.speed * 1.2);
+    const bob = snap.grounded > 0 ? Math.sin(fp.bob) * Math.min(3, snap.speed * 0.25) : -4;
+    const by = H * 0.9 + bob + fp.kick * H * 0.06;
+    const cxh = W / 2;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // 앞바퀴 윗부분
+    ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = s * 0.045;
+    ctx.beginPath(); ctx.arc(cxh, by + s * 0.33, s * 0.2, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke();
+    // 포크·스템
+    ctx.strokeStyle = '#2b6cb0'; ctx.lineWidth = s * 0.03;
+    ctx.beginPath(); ctx.moveTo(cxh - s * 0.05, by + s * 0.2); ctx.lineTo(cxh - s * 0.02, by + s * 0.02); ctx.moveTo(cxh + s * 0.05, by + s * 0.2); ctx.lineTo(cxh + s * 0.02, by + s * 0.02); ctx.stroke();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = s * 0.035;
+    ctx.beginPath(); ctx.moveTo(cxh, by + s * 0.03); ctx.lineTo(cxh, by - s * 0.02); ctx.stroke();
+    // 핸들바
+    const gx = s * 0.36, gy = by - s * 0.035;
+    ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = s * 0.03;
+    ctx.beginPath(); ctx.moveTo(cxh - gx, gy); ctx.quadraticCurveTo(cxh, by - s * 0.06, cxh + gx, gy); ctx.stroke();
+    // 브레이크 레버 (반대로 기울이면 당겨짐)
+    ctx.strokeStyle = '#9aa3ad'; ctx.lineWidth = s * 0.012;
+    for (const sd of [-1, 1]) {
+      const x0 = cxh + sd * gx * 0.78, y0 = gy - s * 0.005;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + sd * s * 0.1, y0 - s * (0.06 - 0.045 * brake)); ctx.stroke();
+    }
+    // 종
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(cxh - gx * 0.45, gy - s * 0.02, s * 0.018, 0, Math.PI * 2); ctx.fill();
+    // 팔과 장갑
+    for (const sd of [-1, 1]) {
+      const hx = cxh + sd * gx * 0.92, hy = gy;
+      ctx.strokeStyle = '#e8553d'; ctx.lineWidth = s * 0.11;
+      ctx.beginPath(); ctx.moveTo(cxh + sd * s * 0.62, H + s * 0.08); ctx.lineTo(hx + sd * s * 0.05, hy + s * 0.07); ctx.stroke();
+      ctx.strokeStyle = '#f2c29b'; ctx.lineWidth = s * 0.075;
+      ctx.beginPath(); ctx.moveTo(hx + sd * s * 0.05, hy + s * 0.07); ctx.lineTo(hx + sd * s * 0.015, hy + s * 0.025); ctx.stroke();
+      ctx.fillStyle = '#26324a';
+      ctx.beginPath(); ctx.ellipse(hx, hy, s * 0.06, s * 0.045, sd * 0.25, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = s * 0.006;
+      for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.moveTo(hx - s * 0.035 + k * 0.004 * s, hy - s * 0.02 + k * s * 0.02); ctx.lineTo(hx + s * 0.035, hy - s * 0.02 + k * s * 0.02); ctx.stroke(); }
+    }
+  }
+
   function drawCover(img) {
     // 화면을 꽉 채우게. 위쪽(하늘·헬멧)은 남기고 아래 풀밭을 잘라 내고, 좁은 화면에선 왼쪽 라이더 쪽을 보여 줌
     const r = Math.max(W / img.naturalWidth, H / img.naturalHeight);
@@ -523,6 +789,7 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     if (!sim) { ctx.fillStyle = THEMES[0].sky0; ctx.fillRect(0, 0, W, H); return; }
     if (demo && IMG.title && IMG.title.complete && IMG.title.naturalWidth) { drawCover(IMG.title); return; }
+    if (SET.view !== 'side' && !demo) { renderFP(dt); return; }
     const snap = sim.snapshot();
     const base = Math.max(22, Math.min(W / 18, H / 8.5));
     const kz = Math.min(1, snap.speed / 14);
@@ -573,6 +840,7 @@
     const inputs = isTouchDevice ? [['tilt', T('inputTilt')], ['touch', T('inputTouch')]] : [['keys', T('inputKeys')]];
     seg('segInput', inputs, Input.mode, v => { if (v === 'tilt') enableTilt(); else { Input.mode = v; SET.input = v; saveSet(); applyTexts(); } });
     seg('segLang', [['ko', '한국어'], ['en', 'English']], L.lang, v => { L.set(v); SET.lang = v; saveSet(); applyTexts(); });
+    seg('segView', [['fp', T('viewFP')], ['side', T('viewSide')]], SET.view === 'side' ? 'side' : 'fp', v => { SET.view = v; saveSet(); });
     $('bRecalib').style.display = Input.mode === 'tilt' ? '' : 'none';
     $('bDiag').style.display = isTouchDevice ? '' : 'none';
     $('bReset').textContent = resetArmed ? T('resetConfirm') : T('resetProgress');
@@ -595,7 +863,7 @@
       sim.step(phiDeg * DEG, dt);
       for (const ev of sim.drainEvents()) {
         if (ev.t === 'jump') A.SFX.jump();
-        else if (ev.t === 'land') { A.SFX.land(ev.v); if (ev.v > 5) vibrate(15); }
+        else if (ev.t === 'land') { A.SFX.land(ev.v); fp.kick = Math.min(1.5, ev.v / 6); if (ev.v > 5) vibrate(15); }
         else if (ev.t === 'gate') { A.SFX.gate(); vibrate(10); }
         else if (ev.t === 'bridge') A.SFX.bridge();
         else if (ev.t === 'crash') { A.SFX.crash(); vibrate([40, 30, 60]); view.shake = 10; }
@@ -657,6 +925,7 @@
   on('bPortraitOk', () => { allowPortrait = true; resize(); });
   on('bRestart', () => { if (sim && !demo) { A.SFX.click(); withAdMaybe(() => startStage(stageIdx)); } });
   on('bPause', () => { A.SFX.click(); pauseGame(); });
+  on('bView', () => { A.SFX.click(); SET.view = SET.view === 'side' ? 'fp' : 'side'; saveSet(); });
   on('bResume', () => { A.SFX.click(); resumeGame(); });
   on('bPRestart', () => { A.SFX.click(); startStage(stageIdx); });
   on('bPList', () => { A.SFX.click(); openStages(worldOf(stageIdx)); });
@@ -675,6 +944,7 @@
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { Input.keyL = true; e.preventDefault(); }
     if ((e.key === 'r' || e.key === 'R') && sim && !demo && !anyOverlay()) startStage(stageIdx);
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { if (paused) resumeGame(); else pauseGame(); }
+    if ((e.key === 'v' || e.key === 'V') && !anyOverlay()) { SET.view = SET.view === 'side' ? 'fp' : 'side'; saveSet(); }
     if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
     if ((e.key === 'Enter' || e.key === ' ') && current() === 'title') { A.ensure(); firstScreen(); }
   });
