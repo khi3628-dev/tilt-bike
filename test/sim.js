@@ -1,14 +1,17 @@
 // 헤드리스 시뮬레이션: 판별 모범/실패 운전 검증.  node test/sim.js [판번호] | check | par
 const { Sim, stageCount, PAR } = require('../src/core.js');
+const BIKE = process.env.BIKE || 'city';
 const { STAGE_POLICIES } = require('./policies.js');
 const D = Math.PI / 180;
 
 function run(stage, policy, maxT = 70) {
-  const s = new Sim(stage);
+  const s = new Sim(stage, { bike: BIKE });
   const m = s.def.t.marks, z = s.def.stopZone, gates = s.def.gates.map(g => g.zone);
   let maxSp = 0, backHint = false;
   while (!s.result && s.time < maxT) {
-    s.step(policy(s.snapshot(), m, z, gates) * D, 1 / 60);
+    const sn = s.snapshot();
+    if (policy.jump && policy.jump(sn, m, s)) s.jump();
+    s.step(policy(sn, m, z, gates, s) * D, 1 / 60);
     maxSp = Math.max(maxSp, s.speed());
     if (s.backTime > 1.2) backHint = true;
   }

@@ -10,6 +10,12 @@ STOP.g1 = (s, m, z, gates) => s.gates[1] ? 25 : STOP((gates[1].x0 + gates[1].x1)
 const P = (list) => (s, m, z, g) => { for (const [xEnd, pol] of list) if (s.x < xEnd(m, z)) return pol(s, m, z, g); return list[list.length - 1][1](s, m, z, g); };
 const X = (f) => (m, z) => f(m, z);
 
+// 2.0: 점프(상자까지 남은 시간 0.2~0.32초, 위로 넘는 틈은 끝에서) / 공중에서 땅 경사에 맞추기
+const G0 = require('../src/core.js');
+const JMP = (base, keys) => { const f = (s, m, z, g, sim) => base(s, m, z, g, sim); f.jump = (s, m) => keys.some(k => { if (!m[k]) return false; const tt = (m[k].x - s.x) / Math.max(1, s.vx); return tt < 0.32 && tt > 0.2; }) || (m.lip2 && s.x > m.lip2.x - 0.9 && s.x < m.lip2.x); return f; };
+const PIL = (base) => { const f = (s, m, z, g, sim) => { if (!sim || sim.grounded() > 0 || !sim.inAir) return base(s, m, z, g, sim); const P = sim.def.t.pieces, x = s.x + Math.max(1, s.vx * 0.35), ya = G0.groundYAt(P, x - 0.5), yb = G0.groundYAt(P, x + 0.5); const sl = ya != null && yb != null ? Math.atan2(yb - ya, 1) : 0; let e = s.angle - sl; e = Math.atan2(Math.sin(e), Math.cos(e)); return clamp(sim.phiRef * 180 / Math.PI + 60 * e + 6 * sim.chassis.getAngularVelocity()); }; f.jump = base.jump; return f; };
+const ZS = (a) => P([[X((m, z) => z.x0 - 14), C(a)], [X(() => 1e9), STOP.z]]);
+
 // 각 판: good = 성공해야 하는 운전들, bad = [이름, 운전, 기대 실패 종류(|로 여럿)]
 const STAGE_POLICIES = [
   { good: { '끝까지 25°': C(25), '살짝 8°': C(8) }, bad: [['안 기울임', C(0), 'timeout'], ['반대로 -10°', C(-10), 'timeout']] },
@@ -42,10 +48,29 @@ const STAGE_POLICIES = [
     bad: [['터널 빠름', P([[X(m => m.b1.x + 5), C(20)], [X(m => m.gate.x), STOP.g0], [X(m => m.plateau.x - 4), C(25)], [X(() => 1e9), STOP.z]]), 'crash|ceil'],
       ['검문소 안 멈춤', P([[X(m => m.w0.x - 2), C(15)], [X(m => m.bumpsEnd.x), T(4)], [X(() => 1e9), C(25)]]), 'gate|crash'],
       ['안 멈춤', P([[X(m => m.w0.x - 2), C(15)], [X(m => m.bumpsEnd.x), T(4)], [X(m => m.b1.x + 5), C(25)], [X(m => m.gate.x), STOP.g0], [X(() => 1e9), C(25)]]), 'cliff']] },
+  // 세계 4: 얼음 고개
+  { good: { '끝까지 25°': C(25), '살짝 12°': C(12) }, bad: [['안 기울임', C(0), 'timeout']] },
+  { good: { '25° → 멈춤': ZS(25), '12° → 멈춤': ZS(12) }, bad: [['안 멈춤 18°', C(18), 'cliff'], ['늦게 브레이크', P([[X((m, z) => z.x0 - 3), C(25)], [X(() => 1e9), STOP.z]]), 'cliff']] },
+  { good: { '끝까지 25°': C(25), '계속 12°': C(12) }, bad: [['살짝 6°', C(6), 'gap']] },
+  { good: { '얼음부터 4m/s': P([[X(m => m.i0.x), C(20)], [X(m => m.bumpsEnd.x), T(4)], [X(() => 1e9), C(15)]]), '얼음부터 3m/s': P([[X(m => m.i0.x), C(20)], [X(m => m.bumpsEnd.x), T(3)], [X(() => 1e9), C(15)]]) },
+    bad: [['브레이크 없이 18°', C(18), 'ceil|crash'], ['얼음 끝에서야 브레이크', P([[X(m => m.i1.x - 2), C(22)], [X(m => m.bumpsEnd.x), T(4)], [X(() => 1e9), C(15)]]), 'ceil|crash']] },
+  { good: { '25° → 멈춤': ZS(25), '18° → 멈춤': ZS(18) }, bad: [['안 멈춤', C(22), 'cliff'], ['살짝 7°', C(7), 'gap|timeout']] },
+  // 세계 5: 비바람 계곡
+  { good: { '끝까지 25°': C(25), '계속 12°': C(12) }, bad: [['살짝 3°', C(3), 'gap|timeout']] },
+  { good: { '끝까지 25°': C(25), '계속 18°': C(18) }, bad: [['계속 12°', C(12), 'timeout'], ['진흙 앞에서 늦춤', P([[X(m => m.m0.x - 6), C(25)], [X(() => 1e9), C(10)]]), 'timeout']] },
+  { good: { '25° → 멈춤': ZS(25), '18° → 멈춤': ZS(18) }, bad: [['안 멈춤', C(20), 'cliff'], ['틈 앞 5m/s', P([[X(m => m.kick.x - 12), C(20)], [X(() => 1e9), T(5)]]), 'gap|crash']] },
+  { good: { '끝까지 25°': C(25), '계속 12°': C(12) }, bad: [['살짝 6°', C(6), 'gap|timeout']] },
+  { good: { '25° → 멈춤': ZS(25), '18° → 멈춤': ZS(18) }, bad: [['안 멈춤', C(22), 'cliff'], ['살짝 6°', C(6), 'cliff|timeout']] },
+  // 세계 6: 익스트림 파크 (점프)
+  { good: { '25° + 점프': JMP(C(25), ['b1', 'b2', 'b3']), '12° + 점프': JMP(C(12), ['b1', 'b2', 'b3']) }, bad: [['점프 안 함', C(18), 'crash']] },
+  { good: { '18° + 점프': JMP(C(18), ['b1', 'j']), '25° + 점프 + 공중 맞추기': PIL(JMP(C(25), ['b1', 'j'])) }, bad: [['점프 안 함', C(18), 'crash|gap']] },
+  { good: { '25° + 점프': JMP(C(25), []), '18° + 점프 + 공중 맞추기': PIL(JMP(C(18), [])) }, bad: [['점프 안 함 25°', C(25), 'crash|gap']] },
+  { good: { '끝까지 25°': C(25), '계속 12°': C(12) }, bad: [['살짝 8°', C(8), 'crash']] },
+  { good: { '25° + 점프': JMP(C(25), ['b1']), '18° + 점프': JMP(C(18), ['b1']) }, bad: [['점프 안 함', C(25), 'crash'], ['살짝 8°', JMP(C(8), ['b1']), 'crash']] },
 ];
 // P에 gates도 넘기기
 for (const sp of STAGE_POLICIES) {
-  const wrap = f => (s, m, z, gates) => f(s, m, z, gates);
+  const wrap = f => { const g = (s, m, z, gates, sim) => f(s, m, z, gates, sim); g.jump = f.jump; return g; };
   for (const k in sp.good) sp.good[k] = wrap(sp.good[k]);
   sp.bad = sp.bad.map(([n, f, e]) => [n, wrap(f), e]);
 }
