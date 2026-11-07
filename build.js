@@ -29,3 +29,13 @@ if (fs.existsSync(imgDir)) for (const f of fs.readdirSync(imgDir)) {
   for (const d of ['dist/img', 'crazygames/img']) fs.copyFileSync(path.join(imgDir, f), path.join(__dirname, d, f));
 }
 console.log('dist/index.html', (a.length / 1024).toFixed(0) + 'KB · crazygames/index.html', (b.length / 1024).toFixed(0) + 'KB');
+
+// [레이스 시험판] race.html (본편·2.0과 별개)
+{
+  let r = rd('race/race.src.html');
+  r = r.replace('<script>/*PLANCK*/</script>', () => '<script>' + safe(rd('node_modules/planck/dist/planck.min.js').replace(/\/\/# sourceMappingURL=.*$/m, '')) + '</script>');
+  r = r.replace('<script>/*RACECORE*/</script>', () => '<script>' + safe(rd('race/race-core.js')) + '</script>').replace('<script>/*RACEAPP*/</script>', () => '<script>' + safe(rd('race/race-app.js')) + '</script>');
+  fs.writeFileSync(path.join(__dirname, 'dist/race.html'), r);
+  fs.writeFileSync(path.join(__dirname, 'race.html'), r);
+  console.log('race.html', (r.length / 1024).toFixed(0) + 'KB');
+}

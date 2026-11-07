@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Fixie Drop 레이스 (시험판)</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0f1d2b; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #1d2a36; user-select: none; -webkit-user-select: none; touch-action: none; }
+  #cv { position: fixed; inset: 0; display: block; }
+  .ov { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(10,20,32,.55); z-index: 10; padding: 12px; }
+  .ov.show { display: flex; }
+  .card { background: #fffdf6; border-radius: 18px; padding: 18px 20px; max-width: 460px; width: 100%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.35); max-height: 92vh; overflow: auto; }
+  h1 { margin: 2px 0 6px; font-size: 26px; } h2 { margin: 4px 0; font-size: 24px; }
+  .sub { color: #6b7a87; font-size: 13px; margin-bottom: 8px; }
+  ul { text-align: left; font-size: 14px; line-height: 1.5; padding-left: 20px; margin: 8px 0 12px; }
+  .btn { border: 0; border-radius: 999px; padding: 12px 22px; font-size: 17px; font-weight: 800; background: #e8553d; color: #fff; cursor: pointer; margin: 4px; font-family: inherit; }
+  .btn.sub2 { background: #e3e9ef; color: #1d2a36; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .pill { position: absolute; background: rgba(15,29,43,.6); color: #fff; border-radius: 999px; padding: 6px 12px; font-weight: 800; }
+  #hPlace { left: 10px; top: calc(10px + env(safe-area-inset-top)); font-size: 22px; }
+  #hTime { left: 50%; transform: translateX(-50%); top: calc(10px + env(safe-area-inset-top)); font-size: 18px; }
+  #hSpeed { right: 104px; top: calc(12px + env(safe-area-inset-top)); font-size: 14px; }
+  #hBarWrap { position: absolute; left: 12%; right: 12%; top: calc(52px + env(safe-area-inset-top)); height: 6px; background: rgba(255,255,255,.35); border-radius: 3px; }
+  #hBar i { position: absolute; top: -2px; width: 10px; height: 10px; border-radius: 50%; margin-left: -5px; }
+  #hTips { position: absolute; left: 0; right: 0; top: calc(66px + env(safe-area-inset-top)); text-align: center; }
+  #hTips span { display: inline-block; background: rgba(15,29,43,.55); color: #fff; border-radius: 999px; padding: 4px 10px; margin: 0 3px; font-size: 13px; font-weight: 700; }
+  #hCount { position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%); font-size: 88px; font-weight: 900; color: #fff; text-shadow: 0 4px 0 rgba(0,0,0,.35); }
+  .tb { position: fixed; top: calc(8px + env(safe-area-inset-top)); width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(15,29,43,.6); color: #fff; font-size: 18px; z-index: 6; }
+  #bMute { right: 10px; } #bRestart { right: 56px; }
+  .tz { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); width: 30vw; max-width: 180px; height: 26vh; min-height: 110px; border-radius: 22px; background: rgba(255,255,255,.14); border: 2px solid rgba(255,255,255,.35); color: #fff; font-size: 44px; display: flex; align-items: center; justify-content: center; z-index: 6; touch-action: none; }
+  .tz.on { background: rgba(255,255,255,.35); }
+  #tL { left: 12px; } #tR { right: 12px; }
+  @media (hover: hover) and (pointer: fine) { .tz { display: none; } }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 15px; }
+  td { padding: 5px 6px; border-bottom: 1px solid #eef0f2; text-align: left; } td:first-child { width: 28px; font-weight: 800; } td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  td i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  tr.me { background: #fff1d6; font-weight: 800; }
+  .big { font-size: 46px; }
+  .keys { font-size: 13px; color: #3a4a58; background: #eef4f9; border-radius: 10px; padding: 8px; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud" style="display:none">
+  <div class="pill" id="hPlace">1 / 5</div>
+  <div class="pill" id="hTime">0.0</div>
+  <div class="pill" id="hSpeed">0 km/h</div>
+  <div id="hBarWrap"><div id="hBar"></div></div>
+  <div id="hTips"></div>
+  <div id="hCount" style="display:none">3</div>
+</div>
+<button class="tb" id="bMute">🔊</button>
+<button class="tb" id="bRestart">↻</button>
+<div class="tz" id="tL">◀</div>
+<div class="tz" id="tR">▶</div>
+
+<div class="ov show" id="ovStart"><div class="card">
+  <div class="big">🚴‍♂️🏁</div>
+  <h1>Fixie Drop 레이스</h1>
+  <div class="sub">시험판 · 5명이 내리막 경기장을 한 번 달려요</div>
+  <ul>
+    <li><b>속도는 내리막으로만</b> 붙어요. 페달은 없어요. 언덕 2곳은 넘어가는 동안 느려져요.</li>
+    <li><b>좌우로 레인만 바꿔요.</b> 앞사람 바로 뒤에 붙으면 <b>💨 바람막이</b>로 덜 느려져요. 가까워지면 옆으로 빠져 추월!</li>
+    <li>굽은 길에선 <b>안쪽 레인이 짧아요</b>. 화면 위 화살표를 보세요.</li>
+    <li>부딪히면 밀리고 흔들려요. 벽에 긁히면 느려져요.</li>
+  </ul>
+  <div class="keys">PC: ← → (또는 A D) · 다시: R &nbsp;|&nbsp; 폰: 화면 아래 ◀ ▶ 누르고 있기</div>
+  <button class="btn" id="bStart">출발</button>
+</div></div>
+
+<div class="ov" id="ovResult"><div class="card">
+  <div class="big" id="rIcon">🏆</div>
+  <h2 id="rTitle">우승!</h2>
+  <table id="rTable"></table>
+  <div class="sub" id="rBest"></div>
+  <button class="btn" id="bAgain">다시 달리기</button>
+</div></div>
+
+<script>/*PLANCK*/</script>
+<script>/*RACECORE*/</script>
+<script>/*RACEAPP*/</script>
+</body>
+</html>
