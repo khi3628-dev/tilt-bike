@@ -3,23 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Fixie Drop 자유 주행 (재설계 시험판)</title>
+<title>Fixie Drop</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0f1d2b; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #1d2a36; user-select: none; -webkit-user-select: none; touch-action: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0f1d2b; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #1d2a36; user-select: none; -webkit-user-select: none; touch-action: none; word-break: keep-all; overflow-wrap: anywhere; }
   #gl { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; width: 100dvw; height: 100dvh; display: none; }
   #cv { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; width: 100dvw; height: 100dvh; display: block; }
   .ov { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(10,20,32,.45); z-index: 10; padding: 10px; }
   .ov.show { display: flex; }
-  .card { background: #fffdf6; border-radius: 18px; padding: 14px 18px; max-width: 470px; width: 100%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.35); max-height: 94vh; overflow: auto; }
-  h1 { margin: 0 0 2px; font-size: 24px; } h2 { margin: 2px 0 4px; font-size: 22px; }
-  .sub { color: #6b7a87; font-size: 12px; margin-bottom: 6px; }
-  .goals { display: flex; gap: 6px; justify-content: center; margin: 6px 0 8px; flex-wrap: wrap; }
+  #ovHelp { z-index: 12; }
+  .card { background: #fffdf6; border-radius: 18px; padding: 10px 16px; max-width: 470px; width: 100%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.35); max-height: 96vh; overflow: auto; }
+  h1 { margin: 0; font-size: 24px; } h2 { margin: 2px 0 4px; font-size: 22px; }
+  .sub { color: #6b7a87; font-size: 13px; margin-bottom: 5px; }
+  .tag { font-size: 13px; font-weight: 800; color: #3b5a2e; margin: 2px 0 4px; }
+  .tag b { color: #b7472a; }
+  .row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 2px; }
+  .btn.big { font-size: 21px; padding: 12px 44px; margin: 2px 0 4px; box-shadow: 0 6px 18px rgba(232,85,61,.35); }
+  .btn.big:disabled { background: #b9c3cc; box-shadow: none; }
+  .btn.sub2.on { background: #1d2a36; color: #fff; }
+  .help { text-align: left; font-size: 15px; line-height: 1.45; margin: 6px 0 8px; }
+  .help div { display: flex; gap: 10px; align-items: center; background: #eef4f9; border-radius: 12px; padding: 8px 12px; margin: 5px 0; }
+  .help div span:first-child { font-size: 26px; width: 36px; text-align: center; flex: 0 0 36px; }
+  .help b { color: #e8553d; }
+  .opts { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 6px 0 8px; }
+  .goals { display: flex; gap: 6px; justify-content: center; margin: 4px 0 6px; flex-wrap: wrap; }
   .goal { background: #eef4f9; border-radius: 10px; padding: 5px 9px; font-size: 13px; font-weight: 700; }
   .goal.done { background: #fff1c2; }
-  .btn { border: 0; border-radius: 999px; padding: 11px 22px; font-size: 17px; font-weight: 800; background: #e8553d; color: #fff; cursor: pointer; margin: 3px; font-family: inherit; }
-  .btn.sub2 { background: #e3e9ef; color: #1d2a36; font-size: 15px; padding: 9px 16px; }
-  .keys { font-size: 12px; color: #3a4a58; background: #eef4f9; border-radius: 10px; padding: 7px 8px; margin-top: 6px; line-height: 1.5; text-align: left; }
+  .btn { border: 0; border-radius: 999px; padding: 11px 22px; font-size: 17px; font-weight: 800; background: #e8553d; color: #fff; cursor: pointer; margin: 3px; font-family: inherit; min-height: 44px; }
+  .btn.sub2 { background: #e3e9ef; color: #1d2a36; font-size: 14px; padding: 8px 14px; min-height: 40px; }
+  .keys { font-size: 12.5px; color: #3a4a58; background: #eef4f9; border-radius: 10px; padding: 6px 10px; margin-top: 5px; line-height: 1.45; text-align: left; }
+  @media (max-height: 420px) { .card { padding: 8px 14px; max-height: calc(100dvh - 12px); } h1 { font-size: 21px; } h2 { font-size: 19px; margin: 0 0 2px; } .tag { font-size: 12px; margin: 0 0 2px; } .sub { font-size: 12px; margin-bottom: 3px; } .goal { font-size: 12px; padding: 4px 8px; } .btn.big { font-size: 19px; padding: 10px 40px; margin: 1px 0 3px; } .btn.sub2 { font-size: 13px; padding: 7px 12px; min-height: 36px; } .opts .btn.sub2, #ovPause .btn.sub2, #ovResult .btn.sub2 { min-height: 44px; } .keys { font-size: 11.5px; padding: 5px 9px; margin-top: 4px; }
+    .help { font-size: 13.5px; line-height: 1.35; margin: 3px 0 4px; } .help div { padding: 5px 10px; margin: 3px 0; gap: 8px; } .help div span:first-child { font-size: 20px; width: 28px; flex-basis: 28px; } #ovHelp .sub { font-size: 11.5px; margin: 0 0 2px; } #ovHelp .btn { padding: 8px 22px; min-height: 40px; margin: 2px; } }
+  @media (max-height: 350px) { #ovHelp .sub { display: none; } .help { font-size: 12.5px; } .help div { padding: 4px 9px; margin: 2px 0; } }
   .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin: 6px 0; }
   .stats div { background: #f4f1e8; border-radius: 10px; padding: 6px 2px; font-size: 12px; color: #6b7a87; }
   .stats b { display: block; font-size: 20px; color: #1d2a36; }
@@ -49,18 +64,42 @@
   #hFlow { display: block; height: 4px; margin-top: 3px; background: rgba(255,255,255,.3); border-radius: 2px; overflow: hidden; }
   #hFlow i { display: block; height: 100%; background: #ffd23f; width: 0; }
   #hGoals { left: 50%; transform: translateX(-50%); top: calc(62px + env(safe-area-inset-top)); display: flex; gap: 5px; background: none; padding: 0; }
-  #hGoals span { background: rgba(15,29,43,.5); color: #fff; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
+  #hGoals span { background: rgba(15,29,43,.5); color: #fff; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 700; transition: opacity .4s; }
+  #hGoals.dim span:not(.done) { opacity: .55; }
   #hGoals span.done { background: rgba(255,210,63,.9); color: #1d2a36; }
-  #hHint { left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom)); font-size: 15px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
-  .tb { position: fixed; top: calc(8px + env(safe-area-inset-top)); width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(15,29,43,.6); color: #fff; font-size: 18px; z-index: 6; display: none; }
-  #bMute { right: 10px; } #bRestart { right: 56px; } #bPause { right: 102px; } #bView { right: 148px; }
-  #tLeft { position: fixed; left: 0; bottom: 0; width: 58vw; height: 70vh; z-index: 4; display: none; touch-action: none; }
-  #tLeft .lbl { position: absolute; left: 14px; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom)); height: 54px; border-radius: 27px; background: rgba(255,255,255,.14); border: 2px solid rgba(255,255,255,.35); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 14px; }
-  #tLeft .knob { position: absolute; bottom: calc(23px + env(safe-area-inset-bottom)); width: 40px; height: 40px; margin-left: -20px; border-radius: 50%; background: rgba(255,255,255,.75); left: 50%; }
-  #tJump { position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: 112px; height: 112px; border-radius: 50%; background: rgba(232,85,61,.55); border: 3px solid rgba(255,255,255,.6); color: #fff; font-size: 17px; font-weight: 900; z-index: 6; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.15; touch-action: none; }
+  #hHint { left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom)); font-size: 15px; opacity: 0; transition: opacity .3s; white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis; }
+  body.fp #hHint { bottom: calc(150px + env(safe-area-inset-bottom)); }   /* 1인칭: 핸들·손 위 */
+  body.touchui #hHint { bottom: auto; top: calc(100px + env(safe-area-inset-top)); }   /* 화면 누르기: 막대를 가리지 않게 위쪽 (목표 알약 아래) */
+  body.touchui #hToast { top: calc(140px + env(safe-area-inset-top)); }
+  #hHint.urge { animation: urge .7s infinite alternate; background: rgba(232,85,61,.9); }
+  @keyframes urge { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.06); } }
+  @media (orientation: portrait) and (max-width: 520px) {   /* 세로로 그냥 하기: 가운데 알약이 상단 단추와 겹치지 않게 왼쪽 열로 */
+    #hGoals { display: none; }
+    #hCombo { left: 10px; transform: none; top: calc(130px + env(safe-area-inset-top)); min-width: 0; font-size: 15px; }
+    #hHint, body.touchui #hHint { font-size: 13px; bottom: auto; top: calc(180px + env(safe-area-inset-top)); }
+    #hToast, body.touchui #hToast { top: calc(220px + env(safe-area-inset-top)); }
+  }
+  .tb { position: fixed; top: calc(8px + env(safe-area-inset-top)); width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(15,29,43,.6); color: #fff; font-size: 18px; z-index: 6; display: none; }
+  #bMute { right: calc(10px + env(safe-area-inset-right)); } #bRestart { right: calc(60px + env(safe-area-inset-right)); } #bPause { right: calc(110px + env(safe-area-inset-right)); } #bView { right: calc(160px + env(safe-area-inset-right)); }
+  #tLeft { position: fixed; left: 0; bottom: 0; width: 56vw; height: 72vh; z-index: 4; display: none; touch-action: none; }
+  #tLeft .lbl { position: absolute; left: calc(12px + env(safe-area-inset-left)); right: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); height: 60px; border-radius: 30px; background: rgba(15,29,43,.45); border: 2px solid rgba(255,255,255,.55); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 15px; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  #tLeft .knob { position: absolute; bottom: calc(22px + env(safe-area-inset-bottom)); width: 48px; height: 48px; margin-left: -24px; border-radius: 50%; background: rgba(255,255,255,.9); box-shadow: 0 2px 8px rgba(0,0,0,.4); left: 50%; }
+  body.fp #tLeft .lbl { bottom: calc(112px + env(safe-area-inset-bottom)); }   /* 1인칭: 핸들·손 위로 올림 */
+  body.fp #tLeft .knob { bottom: calc(118px + env(safe-area-inset-bottom)); }
+  #tLeft.on .lbl { background: rgba(232,85,61,.5); }
+  #tJump { position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); width: 116px; height: 116px; border-radius: 50%; background: rgba(232,85,61,.55); border: 3px solid rgba(255,255,255,.6); color: #fff; font-size: 17px; font-weight: 900; z-index: 6; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.15; touch-action: none; }
   #tJump small { font-size: 11px; font-weight: 700; opacity: .9; }
   #tJump.on { background: rgba(232,85,61,.9); }
+  #ovPortrait { z-index: 13; background: rgba(10,20,32,.97); }   /* 시작 카드 위에 겹쳐 비치지 않게 */
   #ovPortrait .card { max-width: 320px; }
+  .card { position: relative; }
+  .corner { position: absolute; top: 5px; right: 6px; min-width: 34px; height: 34px; border-radius: 17px; border: 0; background: #e3e9ef; color: #1d2a36; font-weight: 800; font-size: 13px; font-family: inherit; cursor: pointer; padding: 0 9px; }   /* 카드 오른쪽 위 작은 단추: 글을 가리지 않게 34px, 누르는 자리는 ::after 로 44px 넘게 */
+  .corner::after { content: ''; position: absolute; inset: -6px; }
+  #ovStart h1, #ovResult h2 { min-height: 34px; display: flex; align-items: center; justify-content: center; padding: 0 44px; }   /* 제목 줄이 작은 단추보다 낮지 않게 → 다음 줄 글이 단추 밑으로 들어가지 않음 */
+  #bShare { font-size: 18px; }
+  #ovShare { z-index: 12; } #ovShare .card { max-width: 560px; }
+  #shareImg { display: block; max-width: 100%; max-height: 54vh; margin: 4px auto 6px; border-radius: 12px; -webkit-user-select: auto; user-select: auto; -webkit-touch-callout: default; }
+  #hToast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(104px + env(safe-area-inset-top)); background: rgba(255,210,63,.95); color: #1d2a36; border-radius: 999px; padding: 7px 14px; font-weight: 800; font-size: 14px; z-index: 7; display: none; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -74,51 +113,78 @@
   <div class="pill" id="hGoals"></div>
   <div class="pill" id="hHint"></div>
 </div>
-<button class="tb" id="bPause" aria-label="일시정지">⏸</button>
-<button class="tb" id="bRestart" aria-label="다시">↻</button>
-<button class="tb" id="bMute" aria-label="소리">🔊</button>
-<button class="tb" id="bView" aria-label="보기 바꾸기">👁</button>
-<div id="tLeft"><div class="lbl"><span>◀ 뒤로</span><span>앞으로 ▶</span></div><div class="knob" id="tKnob"></div></div>
-<div id="tJump">점프<br><small>길게 = 백플립</small></div>
+<button class="tb" id="bPause" aria-label="일시정지" data-aria-en="Pause">⏸</button>
+<button class="tb" id="bRestart" aria-label="다시" data-aria-en="Restart">↻</button>
+<button class="tb" id="bMute" aria-label="소리" data-aria-en="Sound">🔊</button>
+<button class="tb" id="bView" aria-label="보기 바꾸기" data-aria-en="Change view">👁</button>
+<div id="tLeft"><div class="lbl"><span data-en="◀ Slow">◀ 감속</span><span data-en="Fast ▶">가속 ▶</span></div><div class="knob" id="tKnob"></div></div>
+<div id="tJump" data-en="Jump&lt;br&gt;&lt;small&gt;hold = flip&lt;/small&gt;">점프<br><small>길게 = 백플립</small></div>
 
+<div id="hToast"></div>
 <div class="ov show" id="ovStart"><div class="card">
-  <h1>🚲 Fixie Drop · 자유 주행</h1>
-  <div class="sub" style="color:#3b5a2e;font-weight:800">⛰ 한라산 백록담(1,947m)에서 출발 — 관음사까지 내려가 보세요</div>
-  <div class="sub" style="color:#b7472a;font-weight:800">🌋 산사태가 쫓아와요 — 느려지면 잡혀요. 한 번은 버팁니다.</div>
-  <div class="sub">재설계 시험판 · <span id="sMode">오늘의 산</span> <span id="sSeed"></span></div>
+  <button class="corner" id="bLang" aria-label="Language">🌐 EN</button>
+  <h1>🚲 Fixie Drop</h1>
+  <div class="tag" data-en="⛰ Hallasan summit 1,947m → Gwaneumsa · &lt;b&gt;🌋 Outrun the landslide&lt;/b&gt;">⛰ 한라산 백록담 1,947m → 관음사 · <b>🌋 산사태보다 빨리 내려가세요</b></div>
+  <div class="sub"><span id="sMode">오늘의 산</span> <span id="sSeed"></span></div>
   <div class="goals" id="sGoals"></div>
   <div id="sBest" class="sub"></div>
-  <button class="btn" id="bGo">탭해서 출발</button><br>
-  <button class="btn sub2" id="bMode">자유 주행 (무작위 산)</button>
-  <button class="btn sub2" id="bViewS">👁 보기: 1인칭 (V)</button>
-  <button class="btn sub2" id="bTilt" style="display:none">📱 기울기로 하기</button>
-  <button class="btn sub2" id="bInvert" style="display:none">↔ 방향 반대로</button>
+  <button class="btn big" id="bGo" disabled>…</button>
+  <div class="row">
+    <button class="btn sub2" id="bMode">🎲 자유 주행</button>
+    <button class="btn sub2" id="bViewS">👁 1인칭</button>
+    <button class="btn sub2" id="bTilt" style="display:none">📱 기울기</button>
+    <button class="btn sub2" id="bInvert" style="display:none">↔ 방향 반대로</button>
+    <button class="btn sub2" id="bHelp" data-en="❓ Controls">❓ 조작법</button>
+  </div>
   <div class="keys" id="sKeys"></div>
 </div></div>
 
+<div class="ov" id="ovHelp"><div class="card">
+  <h2 data-en="How to play">조작법</h2>
+  <div class="help" id="helpBody"></div>
+  <div class="sub" data-en="Goal: stay upright and ahead of the landslide. The first time it catches you, your &lt;b&gt;spare ●&lt;/b&gt; saves you — the second time, the run is over.">목표: 넘어지지 않고 산사태보다 멀리. 한 번 잡히면 <b>버팀 ●</b>을 쓰고 살아남지만, 두 번째엔 끝.</div>
+  <button class="btn" id="bHelpOk">알겠어요</button>
+</div></div>
+
 <div class="ov" id="ovPause"><div class="card">
-  <h2>일시정지</h2>
-  <button class="btn" id="bResume">계속</button><button class="btn sub2" id="bQuit">처음으로</button>
+  <h2 data-en="Paused">일시정지</h2>
+  <div class="opts">
+    <button class="btn sub2" id="pMute">🔊 소리</button>
+    <button class="btn sub2" id="pView">👁 보기</button>
+    <button class="btn sub2" id="pTilt" style="display:none">📱 조작</button>
+    <button class="btn sub2" id="pInvert" style="display:none">↔ 방향 반대로</button>
+    <button class="btn sub2" id="pHelp" data-en="❓ Controls">❓ 조작법</button>
+    <button class="btn sub2" id="pRestart" data-en="↻ Restart">↻ 다시</button>
+  </div>
+  <button class="btn" id="bResume">계속 (P)</button><button class="btn sub2" id="bQuit" data-en="Home">처음으로</button>
 </div></div>
 
 <div class="ov" id="ovResult"><div class="card">
+  <button class="corner" id="bShare" aria-label="기록 카드" data-aria-en="Share card">📸</button>
   <h2 id="rTitle">넘어졌어요</h2>
   <div class="sub" id="rWhy"></div>
   <div class="rtop"><div id="rStars" class="bigstars"></div><div id="rFar" class="far"></div></div>
   <div id="rHalla" class="sub halla"></div>
   <div class="stats">
-    <div><b id="rDist">0</b>거리 m</div><div><b id="rScore">0</b>점수</div><div><b id="rCoins">0</b>코인</div>
-    <div><b id="rFlips">0</b>백플립</div><div><b id="rCombo">0</b>최고 콤보</div><div><b id="rUpper">0</b>위 길</div>
+    <div><b id="rDist">0</b><span data-en="Distance m">거리 m</span></div><div><b id="rScore">0</b><span data-en="Score">점수</span></div><div><b id="rCoins">0</b><span data-en="Coins">코인</span></div>
+    <div><b id="rFlips">0</b><span data-en="Tricks">트릭</span></div><div><b id="rCombo">0</b><span data-en="Best flow">최고 흐름</span></div><div><b id="rUpper">0</b><span data-en="Close calls">아슬아슬</span></div>
   </div>
   <div id="rBest" class="sub"></div>
   <div class="goals" id="rGoals"></div>
-  <button class="btn" id="bAgain">다시 (R)</button><button class="btn sub2" id="bSwitch">자유 주행</button>
+  <button class="btn" id="bAgain">한 판 더 (R)</button><button class="btn sub2" id="bSwitch">자유 주행</button><button class="btn sub2" id="bHome" data-en="Home">처음으로</button>
+</div></div>
+
+<div class="ov" id="ovShare"><div class="card">
+  <h2 data-en="Your run card">기록 카드</h2>
+  <img id="shareImg" alt="">
+  <div class="sub" id="shareMsg" data-en="Save or share with the button — or press and hold the picture.">단추로 저장·공유하거나, 그림을 길게 눌러 저장하세요.</div>
+  <button class="btn" id="bShareGo" data-en="Save · Share">저장 · 공유</button><button class="btn sub2" id="bShareClose" data-en="Close">닫기</button>
 </div></div>
 
 <div class="ov" id="ovPortrait"><div class="card">
-  <h2>📱 가로로 돌려 주세요</h2>
-  <div class="sub">가로 화면에서 가장 잘 보여요.</div>
-  <button class="btn sub2" id="bPortraitOk">세로로 그냥 하기</button>
+  <h2 data-en="📱 Rotate to landscape">📱 가로로 돌려 주세요</h2>
+  <div class="sub" data-en="It plays best in landscape.">가로 화면에서 가장 잘 보여요.</div>
+  <button class="btn sub2" id="bPortraitOk" data-en="Play in portrait anyway">세로로 그냥 하기</button>
 </div></div>
 
 <script>(function(global,factory){typeof exports==="object"&&typeof module!=="undefined"?factory(exports):typeof define==="function"&&define.amd?define(["exports"],factory):(global=typeof globalThis!=="undefined"?globalThis:global||self,factory(global.planck={}))})(this,function(exports2){"use strict";
@@ -161,10 +227,18 @@
   const FLOW_STEP = 0.19, FLOW_MAX = 5;   // 콤보 1단계마다 공기저항 ÷(1+0.19k), 최대 5단계 → 최고속 약 +40% (11-08 사용자 선택)
   const GROUND_FLOW = 4;     // 땅에서 기술 없이 4초 → 콤보 끊김
   const MULT_MAX = 9;
-  const PTS = { flip: 500, perfect: 150, upper: 200, coin: 20, rockJump: 100, surge: 300, halla: 1000 };
+  const PTS = { flip: 500, front: 600, perfect: 150, upper: 200, coin: 20, rockJump: 100, surge: 300, halla: 1000, near: 150, nearSlide: 200, pose: 200, wheelie: 100, herd: 150, crows: 50 };
+  // ---------- 재미 요소 (11-10 사용자 선택: 아슬아슬 보너스·트릭 늘리기·돌발 이벤트) ----------
+  const POSE = { tap: 0.18, dur: 0.36, max: 2 };            // 공중에서 짧게 톡 = 포즈 (한 번 뜰 때 2번까지). 포즈가 끝나기 전에 착지하면 점수 없음·완벽 착지 아님
+  const FRONT = { lean: 0.4, tRem: 1.0 };                   // 뜬 뒤 앞으로 더 숙이고 길게 = 앞구르기 (백플립보다 더 돌아야 해서 큰 점프에서만)
+  const WHEELIE = { lean: -15 * DEG, tgt: 21 * DEG, vMin: 5, min: 0.6, up: 10 * DEG };   // 땅에서 뒤로 확 젖히면 앞바퀴가 들림 (느려지는 대신 점수, 흐름 유지)
+  const NEAR = { slideIn: 6, slideOut: 14, rock: 3.4, melt: 7, herd: 0.6 };              // 아슬아슬: 산사태 6 m 안까지 왔다가 14 m 밖으로, 낙석이 바로 옆에 떨어짐, 얼음이 쏟아지기 직전 통과, 노루 떼가 막 지나간 뒤 통과
+  const HERD = { trig: 30, t0: 0.6, t1: 3.2, half: 1.0, h: 0.7, slow: 0.5, from: 320 };   // 노루 떼: 30 m 앞에서 길을 건너기 시작 (0.6~3.2초 동안 길 위). 부딪히면 느려짐, 점프로 넘으면 점수, 다 건넌 뒤 지나가도 됨
+  const GUST = { acc: 2.8, fade: 5 };                       // 돌풍 구간: 뒤바람은 밀어 주고 맞바람은 늦춤 (m/s²)
+  const CROWS = { near: 12, fast: 11 };                     // 까마귀 떼: 길에 앉아 있다 12 m 앞에서 날아오름. 11 m/s 넘게 지나가면 점수 (위험 없음)
   // ---------- 움직이는 것들 (11-08 사용자 선택: "느려지면 긴장감") ----------
   // 산사태(언덕)·급류(협곡)·눈사태(눈)가 뒤에서 쫓아옴. 여유 0~90 m. 거리에 따라 빨라지고 가끔 '돌진'. 잡히면 한 번은 버티고(크게 느려짐·콤보 끊김), 두 번째에 끝
-  const SLIDE = { v0: 8.5, v1: 11.5, rampM: 1500, margin0: 40, maxMargin: 70, grace: 2.5, surgeGap: [25, 45], firstSurge: 28, surgeWarn: 2.5, surgeDur: 7, surgeK: 1.55, sweptSlow: 0.5, sweptBack: 28, sweptFreeze: 2.0, sweptCalm: 20 };
+  const SLIDE = { v0: 8.5, v1: 11.5, rampM: 1500, margin0: 40, maxMargin: 70, grace: 2.5, idleWait: 10, caveK: 0.7, surgeGap: [25, 45], firstSurge: 28, surgeWarn: 2.5, surgeDur: 7, surgeK: 1.55, sweptSlow: 0.5, sweptBack: 28, sweptFreeze: 2.0, sweptCalm: 20 };
   const ROCK_R = 0.32, ROCK_FALL = 1.1, ROCK_H = 11;          // 낙석: 그림자 → 1.1초 뒤 떨어져 장애물. 맞으면 넘어짐, 점프로 넘으면 점수
   const BOULDER = { near: 45, cool: [4, 7], extra: 5, stopAfter: 30, decel: 3 };   // 산사태가 가까우면 바위가 튀어나와 추월. 길 가운데 것은 맞으면 크게 느려짐, 멈추면 장애물
   const MELT = { trig: 30, drip: 3.0, pour: 2.0, half: 3.2, slow: 0.45, iceFor: 25 };   // 눈 봉우리: 얼음 처마가 녹아 쏟아짐 — 빨리 지나가면 통과, 느리면 맞고 그 자리는 잠시 빙판
@@ -186,9 +260,9 @@
       alt: [[0, 1947], [e[0], 1800], [at(2.03), 1600], [e[1], 1500], [e[2], 800], [len, 620]],
       grade: { 3: 1.0, 4: 1.0, 5: 1.35, 6: 0.8 },               // 길 기울기 기본 배수 (실제: 정상부 약 16% · 삼각봉~탐라계곡 약 25%로 가장 가파름 · 숲 약 6%)
       drop: [[10, 0], [e[0], d1], [e[1], d2], [e[2], d3], [len, d4]],   // 게임 길 높이 목표 (실제 높이 흐름을 줄인 것). 산을 만들며 이 선을 따라가도록 기울기를 보정
-      weight: { 3: { patch: 1.3, rocky: 1.2 }, 4: { rocky: 2.0, cave: 0.6 }, 5: { rollers: 3.5, drop: 1.3, gap: 0.8 }, 6: { patch: 1.2, upper: 0.8 } },   // 숲: 동굴은 구린굴 하나만 일부러 (동굴이 많으면 느려져 산사태에 다 잡힘)
-      marks: [{ x: at(2.03), k: 'upper', id: 'yongjin', name: '용진각 현수교' }, { x: e[2], k: 'upper', id: 'tamna', name: '탐라계곡 목교' }, { x: at(7.54), k: 'cave', id: 'gurin', name: '구린굴', arg: true }],   // 구린굴 = 높고 매끈한 용암동굴 (빨리 지나가도 됨)   // 현수교가 첫 '위 길'
-      lms: [{ x: 4, id: 'top', name: '백록담' }, { x: e[0], id: 'wanggwan', name: '왕관릉' }, { x: e[1], id: 'samgak', name: '삼각봉 대피소' }, { x: len, id: 'gwaneum', name: '관음사' }]
+      weight: { 3: { patch: 1.3, rocky: 1.2, gust: 1.6, herd: 0.4 }, 4: { rocky: 2.0, cave: 0.6, gust: 1.4, herd: 0.7 }, 5: { rollers: 3.5, drop: 1.3, gap: 0.8, gust: 0.6 }, 6: { patch: 1.2, upper: 0.8, herd: 1.7, gust: 0.6 } },   // 숲: 동굴은 구린굴 하나만 일부러 (동굴이 많으면 느려져 산사태에 다 잡힘)
+      marks: [{ x: at(2.03), k: 'upper', id: 'yongjin', name: '용진각 현수교', en: 'Yongjingak Bridge' }, { x: e[2], k: 'upper', id: 'tamna', name: '탐라계곡 목교', en: 'Tamna Valley Bridge' }, { x: at(7.54), k: 'cave', id: 'gurin', name: '구린굴', en: 'Gurin Cave', arg: true }],   // 구린굴 = 높고 매끈한 용암동굴 (빨리 지나가도 됨)   // 현수교가 첫 '위 길'
+      lms: [{ x: 4, id: 'top', name: '백록담', en: 'Baengnokdam' }, { x: e[0], id: 'wanggwan', name: '왕관릉', en: 'Wanggwanneung' }, { x: e[1], id: 'samgak', name: '삼각봉 대피소', en: 'Samgakbong Shelter' }, { x: len, id: 'gwaneum', name: '관음사', en: 'Gwaneumsa' }]
     };
   })();
   function hallaAlt(x) {
@@ -199,6 +273,8 @@
   // 길 효과 구간 종류 (테마마다 [종류, 확률])
   const PATCH = { 0: [['mud', 0.4], ['wet', 0.3], ['rock', 0.3]], 1: [['rock', 0.6], ['mud', 0.25], ['wet', 0.15]], 2: [['ice', 0.6], ['wet', 0.2], ['rock', 0.2]],
     3: [['ice', 0.45], ['rock', 0.35], ['wet', 0.2]], 4: [['rock', 0.6], ['wet', 0.3], ['mud', 0.1]], 5: [['wet', 0.4], ['mud', 0.3], ['rock', 0.3]], 6: [['mud', 0.45], ['wet', 0.4], ['rock', 0.15]] };
+  // 까마귀 떼가 나올 확률 (지대마다, 완만한 길 하나에): 한라산 높은 곳에 많음
+  const FLOCK_P = { 0: 0.15, 1: 0.2, 2: 0.2, 3: 0.4, 4: 0.4, 5: 0.25, 6: 0.15 };
   const SLIDE_KIND = ['slide', 'flood', 'avalanche', 'avalanche', 'slide', 'slide', 'slide'];
 
   function rng(seed) {
@@ -222,7 +298,7 @@
   function Mountain(seed) {
     this.seed = seed; this.rnd = rng(seed);
     this.pieces = [[[-30, 0]]]; this.x = -30; this.y = 0; this.a = 0;
-    this.plats = []; this.coins = []; this.feats = []; this.gaps = []; this.ceils = []; this.surfs = []; this.rocks = []; this.melts = []; this.decks = [];
+    this.plats = []; this.coins = []; this.feats = []; this.gaps = []; this.ceils = []; this.surfs = []; this.rocks = []; this.melts = []; this.decks = []; this.herds = []; this.flocks = []; this.gusts = [];
     this.marks = HALLA.marks.map(o => Object.assign({}, o));      // 실제 지점을 그 자리에 놓음 (현수교·목교 = 위 길, 구린굴 = 동굴)
     this.lms = HALLA.lms.map(o => Object.assign({}, o));          // 지나가면 알림 + 표지판
     this.count = 0;
@@ -264,6 +340,7 @@
     if (s.slope > 0.5 * DEG || s2.slope > 0.5 * DEG) return;      // 오르막에선 점프가 짧아 못 넘음 → 안 놓음
     for (const r of this.rocks) if (Math.abs(r.x - x) < 15) return;   // 연달아 두 번 점프할 틈(약 1.3초)
     for (const m of this.melts) if (Math.abs(m.x - x) < 10) return;
+    for (const h of this.herds) if (Math.abs(h.x - x) < 15) return;
     this.rocks.push({ x, y: s.y, trig: x - (this.rnd() < 0.3 ? 20 : 28), state: 0, t: 0, h: ROCK_H, passed: false });
   };
   Mountain.prototype.meltAt = function (x) {
@@ -273,6 +350,22 @@
     for (const g of this.gaps) if (x > g.x0 - 40 && x < g.x1 + 10) return;
     this.melts.push({ x, y: s.y, trig: x - MELT.trig, state: 0, t: 0, hit: false });
   };
+  // 노루 떼·까마귀 떼: 처음 배우는 구간(320 m)이 지난 완만한 길에만
+  Mountain.prototype.herdAt = function (x) {
+    const s = this.groundAt(x); if (!s || x < HERD.from || !this.groundAt(x - 3) || !this.groundAt(x + 3)) return false;
+    for (const r of this.rocks) if (Math.abs(r.x - x) < 15) return false;
+    for (const m of this.melts) if (Math.abs(m.x - x) < 15) return false;
+    for (const h of this.herds) if (Math.abs(h.x - x) < 60) return false;
+    this.herds.push({ x, y: s.y, trig: x - HERD.trig, state: 0, t: 0, n: 3 + Math.floor(this.rnd() * 3), side: this.rnd() < 0.5 ? 1 : -1, passed: false, hit: false });
+    return true;
+  };
+  Mountain.prototype.flockAt = function (x) {
+    const s = this.groundAt(x); if (!s || x < HERD.from) return;
+    for (const f of this.flocks) if (Math.abs(f.x - x) < 70) return;
+    for (const h of this.herds) if (Math.abs(h.x - x) < 25) return;
+    this.flocks.push({ x, y: s.y, n: 5 + Math.floor(this.rnd() * 4), done: false });
+  };
+  Mountain.prototype.gustAt = function (x) { for (let i = this.gusts.length - 1; i >= 0; i--) { const g = this.gusts[i]; if (x >= g.x0 && x <= g.x1) return g; if (g.x1 < x - 80) break; } return null; };
   Mountain.prototype.ensure = function (xMax) {
     while (this.x < xMax) {
       const mk = this.marks.length && this.x >= this.marks[0].x - 25 ? this.marks[0] : null;
@@ -280,8 +373,8 @@
         const lf = this.feats[this.feats.length - 1] || {}, ls = lf.surf;
         if (mk.k === 'cave' ? (lf.type === 'drop' || lf.type === 'gap' || ls === 'ice') : (ls === 'mud' || ls === 'rock')) { this.roll(10); continue; }
         this.marks.shift(); this[mk.k](mk.arg);
-        const f = this.feats[this.feats.length - 1]; f.mark = mk.id; f.name = mk.name; if (f.plat) f.plat.mark = mk.id;
-        this.lms.push({ x: mk.k === 'cave' ? f.sign : f.lip.x - 9, id: mk.id, name: mk.name });
+        const f = this.feats[this.feats.length - 1]; f.mark = mk.id; f.name = mk.name; f.en = mk.en; if (f.plat) f.plat.mark = mk.id;
+        this.lms.push({ x: mk.k === 'cave' ? f.sign : f.lip.x - 9, id: mk.id, name: mk.name, en: mk.en });
         continue;
       }
       const k = this.count < this.script.length ? this.script[this.count] : this.pick();
@@ -293,10 +386,10 @@
     const zw = Object.assign({}, HALLA.weight[this.theme(this.x)]);   // 한라산 지대마다 잘 나오는 것 (왕관릉 = 낙석, 급경사 = 데크 계단, 숲 = 용암동굴)
     const err = this.hallaErr();                                        // 목표 높이보다 많이 내려왔으면 오르막·평평한 것, 덜 내려왔으면 낭떠러지
     if (err < -8) { zw.climb = 3; zw.drop = (zw.drop || 1) * 0.4; zw.tabletop = 0.6; } else if (err > 8) { zw.drop = (zw.drop || 1) * 1.6; zw.climb = 0.2; }
-    const w = [['roll', 1.2], ['tabletop', 1.0], ['gap', 0.9 + 0.5 * d], ['upper', 0.8], ['drop', 0.6 + 0.3 * d], ['climb', 0.5], ['rollers', 0.6], ['cave', 0.5 + 0.3 * d], ['patch', this.x > 140 ? 1.2 : 0], ['rocky', 0.5 + 0.5 * d]].map(([k, v]) => [k, v * (zw[k] || 1)]);
+    const w = [['roll', 1.2], ['tabletop', 1.0], ['gap', 0.9 + 0.5 * d], ['upper', 0.8], ['drop', 0.6 + 0.3 * d], ['climb', 0.5], ['rollers', 0.6], ['cave', 0.5 + 0.3 * d], ['patch', this.x > 140 ? 1.2 : 0], ['rocky', 0.5 + 0.5 * d], ['gust', this.x > HERD.from ? 0.5 : 0], ['herd', this.x > HERD.from ? 0.55 : 0]].map(([k, v]) => [k, v * (zw[k] || 1)]);
     // 같은 것이 두 번 연달아 나오지 않게. 빙판 바로 뒤 동굴(못 멈춤), 진흙·돌길 바로 뒤 틈·위 길(속도 못 냄)은 안 나옴
     const lf = this.feats.length ? this.feats[this.feats.length - 1] : null, last = lf ? lf.type : '', ls = lf && lf.surf;
-    const ok = w.filter(([k, v]) => v > 0 && k !== last && !(k === 'gap' && last === 'drop') && !(k === 'cave' && (last === 'drop' || last === 'gap' || ls === 'ice')) && !((k === 'gap' || k === 'upper') && (ls === 'mud' || ls === 'rock')));
+    const ok = w.filter(([k, v]) => v > 0 && k !== last && !(k === 'gap' && last === 'drop') && !(k === 'cave' && (last === 'drop' || last === 'gap' || ls === 'ice' || (lf && lf.wind > 0))) && !((k === 'gap' || k === 'upper') && (ls === 'mud' || ls === 'rock')));
     let tot = ok.reduce((s, [, v]) => s + v, 0), u = this.rnd() * tot;
     for (const [k, v] of ok) { if ((u -= v) <= 0) return k; }
     return 'roll';
@@ -312,6 +405,7 @@
     else if (this.snowy(x0) && this.rnd() < 0.6) this.meltAt(x0 + this.r(8, Math.max(9, len - 6)));
     if (this.rnd() < 0.45 + 0.4 * d) this.rockAt(x0 + this.r(5, Math.max(6, len - 5)));
     if (this.rnd() < 0.5 * d) this.rockAt(x0 + this.r(5, Math.max(6, len - 5)));
+    if (x0 > HERD.from && !melt && this.rnd() < FLOCK_P[this.theme(x0)]) this.flockAt(x0 + len * 0.5);
     this.feats.push({ type: 'roll', x0, x1: this.x });
   };
   // 낙석 구간: 완만한 내리막에 바위 1~3개 (첫 번째엔 표지판)
@@ -399,6 +493,26 @@
     this.feats.push({ type: 'rollers', x0, x1: this.x });
     if (this.theme(x0) === 5) this.decks.push({ x0: x0 + 2, x1: this.x - 1 });   // 한라산 급경사 구간: 나무 데크 계단 (그림만)
   };
+  // 노루 떼 구간: 완만한 길을 노루 떼가 건넘 (표지판 → 30 m 앞에서 건너기 시작)
+  Mountain.prototype.herd = function () {
+    const len = this.r(36, 44), x0 = this.x;
+    this.go(len, -this.r(5, 8) * this.grade(x0), 3);
+    const hx = x0 + len * 0.72, ok = this.herdAt(hx);
+    this.feats.push({ type: 'herd', x0, x1: this.x, hx: ok ? hx : null, sign: ok ? hx - HERD.trig - 10 : null });
+    for (let i = 0; i < 4; i++) this.coinAt(hx - 1.6 + i * 1.6 - 0.8, 1.5 + (i === 1 || i === 2 ? 0.5 : 0));   // 넘는 길에 코인
+  };
+  // 돌풍 구간: 능선 바람. 뒤바람(+1)은 밀어 주고 맞바람(-1)은 늦춤. 턱·틈 없는 완만한 길
+  Mountain.prototype.gust = function () {
+    const len = this.r(34, 46), base = -this.r(5, 8) * this.grade(this.x), dir = this.rnd() < 0.5 ? 1 : -1;
+    this.go(6, base, 2);
+    const x0 = this.x;
+    for (let d = 0; d < len; d += 2) this.go(Math.min(2, len - d), base + this.r(-1.5, 1.5), 1.2);
+    const x1 = this.x;
+    this.go(8, -6, 3);
+    this.gusts.push({ x0, x1, dir });
+    this.feats.push({ type: 'gust', x0, x1, wind: dir, sign: x0 - 10 });
+    for (let x = x0 + 4; x < x1 - 2; x += 3.2) this.coinAt(x, 0.9);
+  };
   // 낮은 동굴: 바위 천장 아래 둔덕. 빠르면 둔덕에서 튀어 머리를 박음 → 뒤로 기울여 6 m/s 아래로 (본편 1-4 '둔덕 터널')
   Mountain.prototype.cave = function (tall) {   // tall = 용암동굴(구린굴): 천장이 높고 바닥이 매끈해서 빨리 지나가도 됨
     this.go(16, -4, 3);
@@ -440,6 +554,7 @@
     for (const pl of this.plats) if (x > pl.x0 - 2 && x < pl.x1 + 2) return true;
     for (const f of this.feats) if (f.type === 'cave' && x > f.x0 - 3 && x < f.x1 + 3) return true;
     for (const r of this.rocks) if (r.state !== 3 && Math.abs(r.x - x) < 5) return true;
+    for (const h of this.herds) if (h.state < 2 && Math.abs(h.x - x) < 12) return true;
     return false;
   };
   Mountain.prototype.theme = function (x) {
@@ -462,8 +577,8 @@
   // ---------- 목표 (판마다 3개: 거리·기술·수집) ----------
   const GOALS = [
     [{ k: 'dist', n: 300 }, { k: 'dist', n: 600 }, { k: 'dist', n: 1000 }, { k: 'score', n: 3000 }, { k: 'score', n: 8000 }],
-    [{ k: 'flips', n: 1 }, { k: 'flips', n: 3 }, { k: 'maxStreak', n: 3 }, { k: 'maxStreak', n: 5 }, { k: 'maxCombo', n: 4 }, { k: 'maxCombo', n: 8 }, { k: 'rockJumps', n: 3 }, { k: 'rockJumps', n: 6 }, { k: 'surges', n: 2 }],
-    [{ k: 'coins', n: 30 }, { k: 'coins', n: 60 }, { k: 'uppers', n: 2 }, { k: 'uppers', n: 4 }]
+    [{ k: 'flips', n: 1 }, { k: 'flips', n: 2 }, { k: 'maxStreak', n: 3 }, { k: 'maxStreak', n: 5 }, { k: 'maxCombo', n: 2 }, { k: 'maxCombo', n: 3 }, { k: 'rockJumps', n: 3 }, { k: 'rockJumps', n: 6 }, { k: 'surges', n: 2 }, { k: 'poses', n: 3 }, { k: 'poses', n: 6 }, { k: 'wheelies', n: 2 }],   // flips 3·maxCombo 8 은 봇 30판 0%, maxCombo 4 는 13% 라 뺌 (검증 1109)
+    [{ k: 'coins', n: 30 }, { k: 'coins', n: 60 }, { k: 'uppers', n: 2 }, { k: 'uppers', n: 3 }]
   ];
   function goalsFor(seed) { const r = rng(seed ^ 0x5bd1e995); return GOALS.map(g => g[Math.floor(r() * g.length)]); }
 
@@ -476,13 +591,14 @@
     m.ensure(220); this.build();
     world.createBody().createFixture(Edge(Vec2(-30, 0), Vec2(-30, 14)), { userData: 'wall' });   // 출발 뒤쪽 벽
     this.makeBike(2);
-    this.phi = 0; this.hold = false; this.time = 0; this.acc = 0; this.result = null; this.crashKind = null;
+    this.phi = 0; this.hold = false; this.time = 0; this.acc = 0; this.result = null; this.crashKind = null; this.crashWhy = null;
     this.events = []; this.combo = 0; this.streak = 0; this.groundT = 0; this.trick = 0;
     this.inAir = false; this.airT = 0; this.rot = 0; this.lastGround = 0; this.lastJump = -9; this.coyoteUsed = false; this.surfNow = null;
-    this.stats = { dist: 0, score: 0, flips: 0, perfects: 0, maxStreak: 0, maxCombo: 0, coins: 0, uppers: 0, maxAir: 0, jumps: 0, swept: 0, rockJumps: 0, surges: 0, halla: 0 };
+    this.flipDir = 1; this.angRef = 0; this.pose = 0; this.posesAir = 0; this.pressAir = false; this.pressT = -9; this.wheelT = 0; this.wheelGap = 0; this.gustNow = null;
+    this.stats = { dist: 0, score: 0, flips: 0, perfects: 0, maxStreak: 0, maxCombo: 0, coins: 0, uppers: 0, maxAir: 0, jumps: 0, swept: 0, rockJumps: 0, surges: 0, halla: 0, fronts: 0, poses: 0, wheelies: 0, nears: 0, herdJumps: 0 };
     this.startX = 2; this.maxX = 2;
     this.rnd = rng((seed ^ 0x9e3779b9) >>> 0); this.bid = 0;
-    this.slide = { x: this.startX - SLIDE.margin0, v: SLIDE.v0, kind: 'slide', surge: 0, warn: 0, nextSurge: SLIDE.firstSurge + this.rnd() * 10, spare: 1, freeze: 0, margin: SLIDE.margin0, sweptInSurge: false };
+    this.slide = { x: this.startX - SLIDE.margin0, v: SLIDE.v0, kind: 'slide', surge: 0, warn: 0, nextSurge: SLIDE.firstSurge + this.rnd() * 10, spare: 1, freeze: 0, margin: SLIDE.margin0, sweptInSurge: false, close: false };
     this.boulders = []; this.nextBoulder = 0;
     this.goals = goalsFor(seed);
     world.on('pre-solve', (c) => {
@@ -510,7 +626,7 @@
       if (rider(ua) && (ub === 'ground' || ub === 'plat')) hit = [fb, ub]; else if (rider(ub) && (ua === 'ground' || ua === 'plat')) hit = [fa, ua];
       if (!hit) return;
       if (hit[1] === 'plat' && this.belowPlat(hit[0].getBody().plat, null)) return;   // 판자 길 밑을 지나가는 중
-      this.crashKind = this.crashKind || 'crash';
+      if (!this.crashKind) { this.crashKind = 'crash'; this.crashWhy = this.inAir && (this.rot > 1.2 || this.flipping) ? 'flip' : ua === 'head' || ub === 'head' ? 'head' : 'body'; }
     });
   }
   // 자전거가 판자 길 아래에 있나 (아래에서 올라오면 통과)
@@ -603,6 +719,11 @@
     return true;
   };
 
+  // 누른 순간을 알려 줌 (앱이 누를 때마다 한 번). 공중에서 짧게 톡 = 포즈, 길게 = 공중제비
+  Ride.prototype.press = function () { this.pressT = this.time; this.pressAir = this.inAir && this.airT > 0.16; };
+  Ride.prototype.touching = function (i) { for (let ce = this.wheels[i].body.getContactList(); ce; ce = ce.next) if (ce.contact.isTouching() && ce.contact.isEnabled()) return true; return false; };
+  Ride.prototype.lowCave = function (x) { return this.m.feats.some(f => f.type === 'cave' && !(f.H > 3) && x > f.x0 - 5 && x < f.x1 + 4); };
+
   Ride.prototype.step = function (dt) {
     if (this.result) return;
     const phi = clamp(this.phi, -MAX_TILT, MAX_TILT);
@@ -632,16 +753,40 @@
       if (S0.brake && along < 0) ch.applyForceToCenter(Vec2(-S0.brake * m * along * tx, -S0.brake * m * along * ty), true);
       if (S0.visc) ch.applyForceToCenter(Vec2(-S0.visc * m * v.x, -S0.visc * m * v.y), true);
     }
+    // 돌풍: 구간 안에서 앞뒤로 밂 (양 끝 5 m는 서서히)
+    const gu = this.m.gustAt(p.x);
+    if (gu !== this.gustNow) { if (gu) this.events.push({ t: 'gust', dir: gu.dir }); this.gustNow = gu; }
+    if (gu) { const a = GUST.acc * gu.dir * (0.7 + 0.3 * Math.sin(this.time * 2.2)) * clamp(Math.min(p.x - gu.x0, gu.x1 - p.x) / GUST.fade, 0, 1); for (const b of this.bodies()) b.applyForceToCenter(Vec2(a * b.getMass(), 0), true); }
     // 공중 자세: 길게 누르기 = 백플립, 기울이기 = 앞뒤(뜬 순간 기울기 기준), 아무것도 안 하면 날아가는 방향으로 천천히 맞춤
     const air = gnd === 0;
-    if (air && !this.inAir) { this.inAir = true; this.airT = 0; this.rot = 0; this.phiRef = phi; }
+    if (!air) this.pressAir = false;
+    if (air && !this.inAir) { this.inAir = true; this.airT = 0; this.rot = 0; this.phiRef = phi; this.flipping = false; this.flipDir = 1; this.angRef = ch.getAngle(); this.pose = 0; this.posesAir = 0; }
     if (air) {
       this.airT += DT; this.rot += ch.getAngularVelocity() * DT;
       const I = ch.getInertia() + 2 * this.wheels[0].body.getMass() * 0.3, w = ch.getAngularVelocity();
       let wt = null, k = 10;
-      if (this.airT > 0.18 && this.hold) wt = FLIP_W;
+      // 공중에서 새로 누름: 짧게 톡(0.18초 안에 뗌) = 포즈, 더 길게 = 공중제비
+      if (this.pressAir) {
+        if (!this.hold) { this.pressAir = false; if (this.time - this.pressT < POSE.tap + 0.1 && !this.pose && this.posesAir < POSE.max) { this.pose = POSE.dur; this.events.push({ t: 'poseStart', n: this.posesAir }); } }
+        else if (this.time - this.pressT >= POSE.tap) this.pressAir = false;
+      }
+      if (this.pose > 0) { this.pose -= DT; if (this.pose <= 0) { this.pose = 0; this.posesAir++; this.events.push({ t: 'pose', n: this.posesAir }); } }
+      // 공중제비: flipDir 1 = 백플립, -1 = 앞구르기. 앞구르기는 뜬 자세에서 착지 경사까지 한 바퀴 넘게 돌아야 함
+      const dir = this.flipDir, rr = this.rot * dir;
+      let need = 2 * Math.PI;
+      if (dir < 0) { const s = this.surfaceUnder(p.x + v.x * 0.25, p.y); need += clamp(this.angRef - (s ? s.slope : 0), 0, 1.3); }
+      let rotM = 0, span = need;   // 첫 바퀴는 need 만큼, 그다음 바퀴부터는 한 바퀴(2π)씩
+      if (rr > 0.9) { if (rr < need) rotM = rr; else { rotM = (rr - need) % (2 * Math.PI); span = 2 * Math.PI; } }
+      const midFlip = rotM > 0.9 && rotM < span - (dir > 0 ? 0.8 : 0.35);   // 공중제비 도중에 손을 놓음
+      const u = clamp((phi - this.phiRef) / (15 * DEG), -1, 1);
+      if (this.airT > 0.18 && this.hold && !this.flipping && !this.pressAir && !this.pose) {   // 공중제비는 남은 체공이 넉넉할 때만 시작 (짧은 점프에서 길게 눌러도 반 바퀴 돌다 떨어지지 않게 — 검증 1109)
+        const g = G * Math.cos(phi), su = this.surfaceUnder(p.x + v.x * 0.3, p.y), h = Math.max(0, p.y - R - (su ? su.y : p.y - 20));
+        const tRem = (v.y + Math.sqrt(Math.max(0, v.y * v.y + 2 * g * h))) / g, front = u > FRONT.lean;
+        if (tRem > (front ? FRONT.tRem : 0.75)) { this.flipping = true; this.flipDir = front ? -1 : 1; if (front) this.phiRef = phi; }   // 앞구르기를 건 기울기가 새 기준 → 돈 뒤에 계속 숙여지지 않게
+      }
+      if (this.airT > 0.18 && this.hold && this.flipping) wt = FLIP_W * this.flipDir;
+      else if (midFlip) { wt = (rotM > span / 2 ? FLIP_W : -7) * dir; k = 12; }   // 반 바퀴 넘었으면 마저 돌리고, 아니면 빠르게 되돌림 (조금 길게 누른 점프가 사망이 되지 않게)
       else if (this.airT > 0.15) {
-        const u = clamp((phi - this.phiRef) / (15 * DEG), -1, 1);
         if (Math.abs(u) > 0.12) wt = -u * AIR_W * Math.min(1, (this.airT - 0.15) / 0.15);
         else {   // 손을 놓으면 내려앉을 자리의 경사로 천천히 맞춤 (밑에 땅이 없으면 날아가는 방향)
           // 절반만 도와줌: 완벽 착지는 플레이어가 맞춰야 함
@@ -651,6 +796,11 @@
         }
       }
       if (wt != null) ch.applyTorque(I * (wt - w) * k, true);
+    }
+    // 윌리: 뒷바퀴가 땅에 있고 뒤로 확 젖히면 앞바퀴를 듦 (낮은 동굴에선 머리가 닿으니 안 듦)
+    if (!air && phi < WHEELIE.lean && sp > WHEELIE.vMin && this.touching(0) && !this.lowCave(p.x)) {
+      const su = this.surfaceUnder(p.x, p.y), rel = wrap(ch.getAngle() - (su ? su.slope : 0)), I = ch.getInertia() + 2 * this.wheels[0].body.getMass() * 0.3;
+      ch.applyTorque(I * (clamp(10 * (WHEELIE.tgt - rel), -4, 4) - ch.getAngularVelocity()) * 14, true);
     }
     this.world.step(DT, 10, 4);
     this.time += DT;
@@ -662,7 +812,19 @@
       if (this.airT > 0.25) this.land();
       if (this.airT > 0.35) this.groundT = 0;
     }
-    if (!this.result && g2 > 0) {
+    // 윌리 시간 재기: 뒷바퀴만 닿고 앞이 8° 넘게 들린 동안. 0.6초 넘게 버티면 1초에 100점
+    {
+      const su = g2 > 0 ? this.surfaceUnder(np.x, np.y) : null, lean = phi < WHEELIE.lean, up = su && lean && this.touching(0) && !this.touching(1) && wrap(ch.getAngle() - su.slope) > WHEELIE.up;
+      if (up) { this.wheelT += DT; this.wheelGap = 0; }
+      else if (this.wheelT > 0) {   // 울퉁불퉁한 길에서 앞바퀴가 잠깐(0.15초) 닿는 건 봐줌
+        this.wheelGap += DT;
+        if (!lean || this.wheelGap > 0.15) {
+          if (this.wheelT >= WHEELIE.min && !this.result) { this.stats.wheelies++; this.addPoints(PTS.wheelie * this.wheelT, 'wheelie'); this.events.push({ t: 'wheelie', dur: this.wheelT }); }
+          this.wheelT = 0; this.wheelGap = 0;
+        }
+      }
+    }
+    if (!this.result && g2 > 0 && !(this.wheelT > 0)) {
       this.groundT += DT;
       if (this.groundT > GROUND_FLOW && this.combo > 0) { this.combo = 0; this.streak = 0; this.events.push({ t: 'flowEnd' }); }
     }
@@ -674,6 +836,7 @@
       if (Math.hypot(c.x - np.x, c.y - (np.y + 0.4)) < 0.95) { c.got = true; this.stats.coins++; this.trick += PTS.coin; this.events.push({ t: 'coin', x: c.x, y: c.y }); }
     }
     this.dynamics(np, g2);
+    this.critters(np);
     this.checkEnd(g2);
     if (this.time - (this.lastGen || 0) > 0.25) { this.lastGen = this.time; this.m.ensure(np.x + 170); this.build(); this.cull(np.x - 70); this.m.surfs = this.m.surfs.filter(sf => !sf.until || sf.until > this.time); }
   };
@@ -692,18 +855,25 @@
     // --- 한라산 지점: 지나가면 알림. 관음사(한라산 끝)에 닿으면 완주 보너스 (콤보 배수 없이)
     for (const L of m.lms) if (!L.passed && p.x > L.x) {
       L.passed = true;
-      this.events.push({ t: 'landmark', id: L.id, name: L.name, alt: hallaAlt(L.x) });
+      this.events.push({ t: 'landmark', id: L.id, name: L.name, en: L.en, alt: hallaAlt(L.x) });
       if (L.id === 'gwaneum') { this.stats.halla = 1; this.trick += PTS.halla; this.events.push({ t: 'hallaDone', n: PTS.halla }); }
     }
     const base = SLIDE.v0 + (SLIDE.v1 - SLIDE.v0) * clamp((p.x - this.startX) / SLIDE.rampM, 0, 1);
+    const caveSoon = m.feats.some(f => f.type === 'cave' && !(f.H > 3) && f.x1 > p.x - 2 && f.x0 - p.x < 45);   // 낮은 동굴 앞·안
+    if (caveSoon && (S.warn > 0 || S.surge > 0)) { S.warn = 0; S.surge = 0; S.nextSurge = t + 12 + this.rnd() * 8; this.events.push({ t: 'surgeOff' }); }   // 동굴 앞에서는 돌진을 거둠 (느려져야 하는 곳에서 "빨리!"를 겹치지 않게)
     if (S.warn > 0) { S.warn -= DT; if (S.warn <= 0) { S.surge = SLIDE.surgeDur; S.sweptInSurge = false; this.events.push({ t: 'surge' }); } }
     else if (S.surge > 0) { S.surge -= DT; if (S.surge <= 0) { S.nextSurge = t + SLIDE.surgeGap[0] + this.rnd() * (SLIDE.surgeGap[1] - SLIDE.surgeGap[0]); if (!S.sweptInSurge) { this.stats.surges++; this.addPoints(PTS.surge, 'surge'); this.events.push({ t: 'surgeEnd' }); } } }
-    else if (t > S.nextSurge && !m.feats.some(f => f.type === 'cave' && f.x1 > p.x - 2 && f.x0 - p.x < 45)) { S.warn = SLIDE.surgeWarn; this.events.push({ t: 'surgeWarn' }); }   // 동굴 앞·안에서는 돌진 안 함 (느려져야 하는 곳)
-    S.v = base * (S.surge > 0 ? SLIDE.surgeK : 1);
-    if (S.freeze > 0) S.freeze -= DT; else if (t > SLIDE.grace) S.x += S.v * DT;
+    else if (t > S.nextSurge && !caveSoon) { S.warn = SLIDE.surgeWarn; this.events.push({ t: 'surgeWarn' }); }   // 동굴 앞·안에서는 돌진 안 함 (느려져야 하는 곳)
+    const caveIn = m.feats.some(f => f.type === 'cave' && !(f.H > 3) && f.x1 + 2 > p.x && f.x0 - p.x < 10);   // 낮은 동굴 10 m 앞~안
+    S.v = base * (S.surge > 0 ? SLIDE.surgeK : 1) * (caveIn ? SLIDE.caveK : 1);   // 동굴에선 산사태도 느려짐 — 동굴이 사망 지점이 되지 않게 (검증 1109)
+    if (S.freeze > 0) S.freeze -= DT; else if (t > SLIDE.grace && (this.maxX - this.startX > 3 || t > SLIDE.idleWait)) S.x += S.v * DT;   // 아직 안 움직였으면 10초까지 기다림 (조작을 찾는 동안 0 m 로 끝나지 않게)
     if (S.x < p.x - SLIDE.maxMargin) S.x = p.x - SLIDE.maxMargin;
     S.margin = p.x - S.x;
+    // 아슬아슬: 바로 뒤(6 m)까지 왔다가 14 m 밖으로 벗어나면 보너스
+    if (S.margin < NEAR.slideIn && S.freeze <= 0) S.close = true;
+    else if (S.close && S.margin > NEAR.slideOut) { S.close = false; this.near('slide'); }
     if (S.margin <= 0.5 && !this.result && !this.crashKind) {
+      S.close = false;
       if (S.spare > 0) {
         S.spare--; this.stats.swept++; this.combo = 0; this.streak = 0; S.sweptInSurge = true;
         this.slowDown(SLIDE.sweptSlow); S.x = p.x - SLIDE.sweptBack; S.freeze = SLIDE.sweptFreeze; S.surge = 0; S.warn = 0; S.margin = SLIDE.sweptBack; S.nextSurge = t + SLIDE.sweptCalm;   // 휩쓸린 직후엔 돌진 없음
@@ -717,7 +887,7 @@
       if (rk.state === 0 && p.x > rk.trig) { rk.state = 1; rk.t = 0; this.events.push({ t: 'rockFall', x: rk.x }); }
       if (rk.state === 1) {
         rk.t += DT; const u = Math.min(1, rk.t / ROCK_FALL); rk.h = ROCK_H * (1 - u * u);
-        if (u >= 1) { this.landRock(rk); if (Math.abs(p.x - rk.x) < 1.1 && p.y - rk.y < 1.6) this.crashKind = this.crashKind || 'rock'; }
+        if (u >= 1) { this.landRock(rk); const dx = Math.abs(p.x - rk.x); if (dx < 1.1 && p.y - rk.y < 1.6) this.crashKind = this.crashKind || 'rock'; else if (dx < NEAR.rock && p.y - rk.y < 3) this.near('rock'); }
       }
       if (rk.state === 2 && !rk.passed && p.x > rk.x) { rk.passed = true; if (this.inAir) { this.stats.rockJumps++; this.addPoints(PTS.rockJump, 'rockJump'); this.events.push({ t: 'rockJump', x: rk.x }); } }
     }
@@ -758,7 +928,7 @@
       if (ml.state === 0 && p.x > ml.trig) { ml.state = 1; ml.t = 0; this.events.push({ t: 'meltDrip', x: ml.x }); }
       if (ml.state >= 1) {
         ml.t += DT;
-        if (ml.state === 1 && ml.t >= MELT.drip) { ml.state = 2; this.events.push({ t: 'meltPour', x: ml.x }); }
+        if (ml.state === 1 && ml.t >= MELT.drip) { ml.state = 2; this.events.push({ t: 'meltPour', x: ml.x }); if (p.x > ml.x + MELT.half && p.x < ml.x + MELT.half + NEAR.melt) this.near('melt'); }
         if (ml.state === 2) {
           if (!ml.hit && Math.abs(p.x - ml.x) < MELT.half && p.y - ml.y < 2.4) { ml.hit = true; this.combo = 0; this.streak = 0; this.slowDown(MELT.slow); this.events.push({ t: 'meltHit' }); }
           if (ml.t >= MELT.drip + MELT.pour) { ml.state = 3; m.surfs.push({ x0: ml.x - MELT.half, x1: ml.x + MELT.half, type: 'ice', until: t + MELT.iceFor, melt: true }); this.events.push({ t: 'meltIce', x: ml.x }); }
@@ -766,15 +936,48 @@
       }
     }
   };
+  Ride.prototype.near = function (kind) {
+    if (this.result || this.crashKind) return;
+    this.stats.nears++; this.groundT = 0;
+    const pts = Math.round((kind === 'slide' ? PTS.nearSlide : PTS.near) * this.mult()); this.trick += pts;
+    this.events.push({ t: 'near', kind, n: pts });
+  };
+  // 돌발 이벤트 — 노루 떼(길을 건넘)·까마귀 떼(날아오름)
+  Ride.prototype.critters = function (p) {
+    const m = this.m;
+    for (const h of m.herds) {
+      if (h.state >= 2) continue;
+      if (h.x < p.x - 40) { h.state = 3; continue; }
+      if (h.state === 0 && p.x > h.trig) { h.state = 1; h.t = 0; this.events.push({ t: 'herd', x: h.x, side: h.side }); }
+      if (h.state !== 1) continue;
+      h.t += DT;
+      const on = h.t > HERD.t0 && h.t < HERD.t1;
+      if (!h.passed && on && Math.abs(p.x - h.x) < HERD.half) {
+        const low = Math.min(this.wheels[0].body.getPosition().y, this.wheels[1].body.getPosition().y) - R;
+        if (low < h.y + HERD.h) { h.passed = true; h.hit = true; this.combo = 0; this.streak = 0; this.slowDown(HERD.slow); this.events.push({ t: 'herdHit', x: h.x }); }
+        else if (p.x > h.x) { h.passed = true; this.stats.herdJumps++; this.addPoints(PTS.herd, 'herd'); this.events.push({ t: 'herdJump', x: h.x }); }
+      }
+      if (!h.passed && p.x > h.x + HERD.half) { h.passed = true; if (h.t >= HERD.t1 && h.t < HERD.t1 + NEAR.herd) this.near('herd'); }
+      if (h.t > HERD.t1 + 3) h.state = 2;
+    }
+    for (const f of m.flocks) if (!f.done && p.x > f.x - CROWS.near) {
+      f.done = true;
+      const fast = this.speed() >= CROWS.fast;
+      if (fast) this.addPoints(PTS.crows, 'crows');
+      this.events.push({ t: 'crows', x: f.x, fast });
+    }
+  };
   Ride.prototype.addPoints = function (n, why) { const pts = Math.round(n * this.mult()); this.trick += pts; this.events.push({ t: 'points', n: pts, why }); };
 
   Ride.prototype.land = function () {
     const ch = this.chassis, p = ch.getPosition(), s = this.surfaceUnder(p.x, p.y);
     const rel = s ? Math.abs(wrap(ch.getAngle() - s.slope)) / DEG : 0;
-    const flips = Math.floor((Math.abs(this.rot) + 0.6) / (2 * Math.PI));
+    const front = this.rot < 0, posing = this.pose > 0, poses = this.posesAir;
+    this.pose = 0;
+    const flips = Math.round(Math.abs(this.rot) / (2 * Math.PI));   // 바퀴를 거의 다 돌고 착지하면 한 바퀴로 침 (턱이 올라가고 착지면이 내려가면 306°가 한 바퀴)
     this.stats.maxAir = Math.max(this.stats.maxAir, this.airT);
-    if (rel > 45) return;                // checkEnd에서 넘어짐 처리
-    const grade = rel < 10 ? 'perfect' : rel < 22 ? 'good' : 'bad';
+    if (rel > 45) { this.crashWhy = this.crashWhy || (this.rot > 1.2 || this.flipping ? 'flip' : 'tilt'); return; }                // checkEnd에서 넘어짐 처리
+    const grade = rel < 10 && !posing ? 'perfect' : rel < 22 ? 'good' : 'bad';   // 포즈가 끝나기 전에 닿으면 완벽 착지가 아님
     let bank = this.airT > 0.5 ? 50 + 100 * (this.airT - 0.5) : 0;
     if (grade === 'bad') {
       const lost = this.combo;
@@ -783,7 +986,8 @@
       this.events.push({ t: 'land', grade, rel, air: this.airT, lost });
       return;
     }
-    if (flips > 0) { this.stats.flips += flips; this.combo += flips; bank += PTS.flip * flips; }
+    if (flips > 0) { this.stats.flips += flips; if (front) this.stats.fronts += flips; this.combo += flips; bank += (front ? PTS.front : PTS.flip) * flips; }
+    if (poses > 0) { this.stats.poses += poses; bank += PTS.pose * poses; }
     if (grade === 'perfect') {
       this.streak++; this.stats.perfects++;
       this.stats.maxStreak = Math.max(this.stats.maxStreak, this.streak);
@@ -793,7 +997,7 @@
     this.stats.maxCombo = Math.max(this.stats.maxCombo, this.combo);
     const pts = Math.round(bank * this.mult());
     this.trick += pts;
-    this.events.push({ t: 'land', grade, rel, air: this.airT, flips, pts, combo: this.combo });
+    this.events.push({ t: 'land', grade, rel, air: this.airT, flips, front: front && flips > 0, poses, poseFail: posing, pts, combo: this.combo });
   };
 
   Ride.prototype.checkEnd = function (g2) {
@@ -809,12 +1013,12 @@
     if (gr && p.y < gr.y - 3) return fail('gap');
     if (g2 > 0) {
       const s = this.surfaceUnder(p.x, p.y);
-      if (s && Math.abs(wrap(ch.getAngle() - s.slope)) > 45 * DEG) return fail('crash');
+      if (s && Math.abs(wrap(ch.getAngle() - s.slope)) > 45 * DEG) { this.crashWhy = this.crashWhy || (this.rot > 1.2 || this.flipping ? 'flip' : s.slope < -20 * DEG ? 'steep' : 'tilt'); return fail('crash'); }
     }
   };
   Ride.prototype.drainEvents = function () { const e = this.events; this.events = []; return e; };
 
-  const api = { Ride, Mountain, goalsFor, GOALS, lineAt, rng, G, R, DT, MAX_TILT, PTS, FLOW_STEP, FLOW_MAX, SURF, SLIDE, ROCK_R, ROCK_H, BOULDER, MELT, HALLA, hallaAlt, SLIDE_KIND };
+  const api = { Ride, Mountain, goalsFor, GOALS, lineAt, rng, G, R, DT, MAX_TILT, PTS, FLOW_STEP, FLOW_MAX, SURF, SLIDE, ROCK_R, ROCK_H, BOULDER, MELT, HALLA, hallaAlt, SLIDE_KIND, POSE, FRONT, WHEELIE, NEAR, HERD, GUST, CROWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RideCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -5059,6 +5263,7 @@ void main() {
   if (!T || !window.RIDE_GLB || !C) { R3D.state = 'failed'; return; }
 
   const DEG = Math.PI / 180, CH = 24, AHEAD = 175, BEHIND = 35;
+  const L = (ko, en) => (window.RIDE_LANG === 'en' ? en : ko);
   const HW = 1.7, RB = 0.32, DW = 1.25;
   // 옆 단면: 골짜기 … 풀 | 길가 | 흙 | 바퀴 자국 | 가운데 | 바퀴 자국 | 흙 | 길가 | 풀 … 골짜기
   const LAT = [-75, -50, -32, -20, -12, -7, -3.5, -(HW + RB), -HW, -0.62, -0.3, 0.3, 0.62, HW, HW + RB, 3.5, 7, 12, 20, 32, 50, 75];
@@ -5110,15 +5315,16 @@ void main() {
     mud: { a: col('#5e3d23'), b: col('#55371f'), rut: col('#3e2716'), pud: col('#6e5540'), edge: col('#4f3520') },
     wet: { a: col('#6b5440'), b: col('#634d3a'), rut: col('#7d93a8'), pud: col('#8aa3b9'), edge: col('#5b4a3a') }
   };
-  const SIGN = { ice: ['🧊 빙판', '#2b8fd6'], rock: ['🪨 돌길', '#6d6a66'], mud: ['💦 진흙', '#7a4a22'], wet: ['🌧 젖은 길', '#3b6fa8'] };
+  const SIGN = { ice: ['🧊 빙판', '#2b8fd6', '🧊 Ice'], rock: ['🪨 돌길', '#6d6a66', '🪨 Rocks'], mud: ['💦 진흙', '#7a4a22', '💦 Mud'], wet: ['🌧 젖은 길', '#3b6fa8', '🌧 Wet'] };
 
   let renderer, scene, camera, rig, sideCam, vmScene, vmCam, vmRig, skyGroup, skyGeo, ridgeMats = [], ridgeObjs = [], seaObj, coinIMs = [], ghostObj, meBike, lever = [], fpTire;
   let slideObj, slideGeo, slideDust, slideDustGeo, rockMats = {}, shadowGeo, shadowMat, plankGeo, plankMat, iceMat, iceSheetMat, icePatchMat, softTex;
-  const rockPool = new Map(), boulderPool = new Map(), meltPool = new Map(), planks = [], deckMats = new Map();
+  const rockPool = new Map(), boulderPool = new Map(), meltPool = new Map(), planks = [], deckMats = new Map(), herdPool = new Map(), crowSets = new Map();
+  let crowMesh, crowGeo; const CROW_MAX = 18, CROW_V = 36;
   let ride = null, mode = 'fp', themeIdx = -1, terrainMat, signMat = {}, clipPlane, pts, ptsGeo;
   const LIB = {}, MESHES = {}, BASE = {}, VAR = {};
   const chunks = new Map(), feats = new Map();
-  const dummy = new T.Object3D();
+  const dummy = new T.Object3D(), tmpM4 = new T.Matrix4();
   const sc = { x: 0, y: 0, d: 10, ok: false };      // 옆 카메라
 
   // ---------- 준비 ----------
@@ -5238,6 +5444,9 @@ void main() {
       seaObj = new T.Mesh(sg, new T.MeshBasicMaterial({ color: 0x5b93bd, fog: false, depthWrite: false, side: T.DoubleSide }));
       seaObj.renderOrder = -1; seaObj.visible = false; skyGroup.add(seaObj);
     }
+    // 까마귀 떼: 한 그물에 18마리까지 (몸통 + 퍼덕이는 날개), 매 프레임 꼭짓점을 다시 씀
+    crowGeo = new T.BufferGeometry(); crowGeo.setAttribute('position', new T.Float32BufferAttribute(new Float32Array(CROW_MAX * CROW_V * 3), 3));
+    crowMesh = new T.Mesh(crowGeo, new T.MeshBasicMaterial({ color: 0x17181c, side: T.DoubleSide })); crowMesh.frustumCulled = false; crowMesh.visible = false; scene.add(crowMesh);
     // 코인: 인스턴스 (한 번에 그림)
     for (const it of MESHES.coin) {
       const im = new T.InstancedMesh(it.geo, BASE[it.mat], 320); im.count = 0; im.frustumCulled = false;
@@ -5500,7 +5709,7 @@ void main() {
   }
   const signPlane = () => signPlane.g || (signPlane.g = new T.PlaneGeometry(1.62, 0.56));
   const PARK = '#5b3a1e';
-  const LM_TEXT = { top: '백록담 1,947m', wanggwan: '왕관릉', samgak: '삼각봉 대피소', gwaneum: '관음사 · 다 내려왔어요!' };
+  const LM_TEXT = { top: ['백록담 1,947m', 'Baengnokdam 1,947m'], wanggwan: ['왕관릉', 'Wanggwanneung'], samgak: ['삼각봉 대피소', 'Samgakbong Shelter'], gwaneum: ['관음사 · 다 내려왔어요!', 'Gwaneumsa · You made it!'] };
   // 한라산 지점 물건: 삼각봉(앞쪽 왼편 세모 봉우리) + 삼각봉 대피소
   function buildLandmark(id) {
     const m = ride.m, grp = new T.Group(), list = [], put = (type, x, z, sc, r, dy) => { const g = m.groundAt(x); if (g) list.push({ type, x, y: yAt(x, g.y, smoothY(x), z) + (dy || 0), z, s: sc, r: r || 0 }); };
@@ -5534,18 +5743,23 @@ void main() {
     }
     const grp = new T.Group(); addProps(grp, list, m.theme(sf.x0)); return grp;
   }
-  function featureList() {
-    const m = ride.m, out = [];
+  let featCache = null, featKey = '', featM = null;
+  function featureList() {   // 산이 자랄 때만 다시 만듦 (매 프레임 배열·클로저를 새로 만들지 않게 — 검증 1109)
+    const m = ride.m, key = m.feats.length + ':' + m.surfs.length + ':' + m.plats.length + ':' + m.lms.length;
+    if (featCache && featM === m && featKey === key) return featCache;
+    featM = m; featKey = key; const out = featCache = [];
     for (const f of m.feats) {
-      if (f.type === 'cave') { out.push({ key: f, x0: f.x0 - 4, x1: f.x1 + 5, make: () => buildCave(f) }); out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, f.H > 3 ? '🕳 ' + f.name : f.name ? '🐢 ' + f.name : '🐢 천천히', '#2f8f4e') }); }
-      else if (f.type === 'upper') out.push({ key: 'sign' + f.lip.x, x0: f.lip.x - 9, x1: f.lip.x - 9, make: () => buildSign(f.lip.x - 9, f.name ? '⬆ ' + f.name : '⬆ 위 길', '#3b82c4') });
-      else if (f.type === 'gap') out.push({ key: 'sign' + f.lip.x, x0: f.lip.x - 9, x1: f.lip.x - 9, make: () => buildSign(f.lip.x - 9, '점프!', '#e8553d') });
-      else if (f.type === 'patch') out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, SIGN[f.surf][0], SIGN[f.surf][1]) });
-      else if (f.type === 'rocky' && f.sign != null) out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, '⚠ 낙석', '#c9542a') });
+      if (f.type === 'cave') { out.push({ key: f, x0: f.x0 - 4, x1: f.x1 + 5, make: () => buildCave(f) }); out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, f.H > 3 ? '🕳 ' + L(f.name, f.en) : f.name ? '🐢 ' + L(f.name, f.en) : L('🐢 천천히', '🐢 Slow'), '#2f8f4e') }); }
+      else if (f.type === 'upper') out.push({ key: 'sign' + f.lip.x, x0: f.lip.x - 9, x1: f.lip.x - 9, make: () => buildSign(f.lip.x - 9, f.name ? '⬆ ' + L(f.name, f.en) : L('⬆ 위 길', '⬆ High road'), '#3b82c4') });
+      else if (f.type === 'gap') out.push({ key: 'sign' + f.lip.x, x0: f.lip.x - 9, x1: f.lip.x - 9, make: () => buildSign(f.lip.x - 9, L('점프!', 'Jump!'), '#e8553d') });
+      else if (f.type === 'patch') out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, L(SIGN[f.surf][0], SIGN[f.surf][2]), SIGN[f.surf][1]) });
+      else if (f.type === 'rocky' && f.sign != null) out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, L('⚠ 낙석', '⚠ Rockfall'), '#c9542a') });
+      else if (f.type === 'herd' && f.sign != null) out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, L('🦌 노루 주의', '🦌 Deer!'), '#8a5a2b') });
+      else if (f.type === 'gust') out.push({ key: 'sign' + f.sign, x0: f.sign, x1: f.sign, make: () => buildSign(f.sign, f.wind > 0 ? L('💨 뒤바람 ▶', '💨 Tailwind ▶') : L('◀ 맞바람 💨', '◀ Headwind 💨'), '#3f8fb5') });
     }
     for (const sf of m.surfs) if (sf.type === 'rock') out.push({ key: sf, x0: sf.x0, x1: sf.x1, make: () => buildPebbles(sf) });
     for (const pl of m.plats) out.push({ key: pl, x0: pl.x0 - 2, x1: pl.x1 + 2, make: () => buildDeck(pl) });
-    for (const L of m.lms) if (LM_TEXT[L.id]) { const sx = L.id === 'top' ? 7 : L.x; out.push({ key: 'lm' + L.id, x0: sx, x1: sx, make: () => buildSign(sx, LM_TEXT[L.id], PARK) }); }
+    for (const L of m.lms) if (LM_TEXT[L.id]) { const sx = L.id === 'top' ? 7 : L.x; out.push({ key: 'lm' + L.id, x0: sx, x1: sx, make: () => buildSign(sx, LM_TEXT[L.id][window.RIDE_LANG === 'en' ? 1 : 0], PARK) }); }
     { const sg = m.lms.find(l => l.id === 'samgak'); if (sg) out.push({ key: 'lm-samgak', x0: sg.x - 90, x1: sg.x + 140, make: () => buildLandmark('samgak') }); }
     { const gw = m.lms.find(l => l.id === 'gwaneum'); if (gw) out.push({ key: 'lm-gwaneum', x0: gw.x - 10, x1: gw.x + 5, make: () => buildLandmark('gwaneum') }); }
     return out;
@@ -5555,12 +5769,14 @@ void main() {
     obj.traverse(o => { if (o.isMesh && o.userData.own) o.geometry.dispose(); });
   }
   function reset() {
+    featCache = null; featM = null;
     for (const g of chunks.values()) drop(g); chunks.clear();
     for (const g of feats.values()) if (g) drop(g); feats.clear();
     for (const o of rockPool.values()) scene.remove(o); rockPool.clear();
     for (const o of boulderPool.values()) scene.remove(o); boulderPool.clear();
     for (const o of meltPool.values()) scene.remove(o.g); meltPool.clear();
     for (const pk of planks) scene.remove(pk.m); planks.length = 0;
+    for (const e of herdPool.values()) scene.remove(e.g); herdPool.clear(); crowSets.clear();
     deckMats.clear(); sc.ok = false;
   }
   // 바위 하나(블렌더 rock_a/b)를 재질 따로 복제해 쓰는 묶음
@@ -5579,6 +5795,58 @@ void main() {
     const patch = new T.Mesh(new T.PlaneGeometry(6.4, 4.2), icePatchMat); patch.rotation.x = -Math.PI / 2; patch.position.y = 0.03; patch.visible = false; g.add(patch); g.userData.patch = patch;
     g.position.set(ml.x, ml.y, curve(ml.x)); g.rotation.y = yawAt(ml.x); scene.add(g);
     return { g, ml };
+  }
+  // 노루 한 마리 (힉스필드 모델, 머리가 −x 쪽) — 없으면 갈색 상자
+  function makeDeer() {
+    const g = new T.Group();
+    if (MESHES.hf_noru) for (const ms of MESHES.hf_noru) { const mesh = new T.Mesh(ms.geo, BASE[ms.mat]); mesh.applyMatrix4(ms.m); g.add(mesh); }
+    else { const b = new T.Mesh(new T.BoxGeometry(1.0, 0.5, 0.3), new T.MeshLambertMaterial({ color: 0x8a5a2b })); b.position.y = 0.7; g.add(b); }
+    const o = new T.Group(); o.add(g); g.scale.setScalar(0.75); return o;
+  }
+  // 노루 떼: 길 옆에 서 있다가(state 0) 줄지어 길을 건넘. 길 위에 있는 시간 = 코어의 0.6~3.2초와 맞춤
+  const DEER_V = 3.4, DEER_ON = 2 * HW / DEER_V;
+  function updateHerds(camX, dt) {
+    const m = ride.m, t = performance.now() / 1000;
+    for (const h of m.herds) {
+      let e = herdPool.get(h);
+      if (h.x < camX - 40 || h.state === 3) { if (e) { scene.remove(e.g); herdPool.delete(h); } continue; }
+      if (h.x > camX + AHEAD) continue;
+      if (!e) { e = { g: new T.Group(), deer: [] }; for (let i = 0; i < h.n; i++) { const d = makeDeer(); e.g.add(d); e.deer.push(d); } scene.add(e.g); herdPool.set(h, e); }
+      const ht = h.state === 0 ? 0 : h.t, yaw = yawAt(h.x);
+      for (let i = 0; i < h.n; i++) {
+        const d = e.deer[i], te = C.HERD.t0 + i * (C.HERD.t1 - C.HERD.t0 - DEER_ON) / Math.max(1, h.n - 1);   // 이 노루가 길에 들어서는 때
+        const x = h.x + ((i * 0.37) % 1 - 0.5) * 1.3, zr = Math.max(-13, Math.min(13, DEER_V * (ht - te) - HW)) * h.side, mv = h.state === 1 && Math.abs(zr) < 12.9;
+        const gr = m.groundAt(x) || { y: h.y }, hop = mv ? Math.abs(Math.sin(t * 9 + i * 1.7)) : 0;
+        d.position.set(x, yAt(x, gr.y, smoothY(x), zr) - 0.03 + 0.28 * hop, curve(x) + zr);
+        d.rotation.set(0, yaw + h.side * Math.PI / 2 + (mv ? 0 : 0.5 * Math.sin(i * 2.3)), mv ? 0.12 * Math.cos(t * 9 + i * 1.7) * h.side : 0, 'YZX');
+      }
+    }
+  }
+  // 까마귀 떼: 길에 앉아 있다가 다가오면 날아오름 (그림만, 코어는 점수만 줌)
+  function updateCrows(camX, dt) {
+    const m = ride.m, t = performance.now() / 1000, P = crowGeo.attributes.position, A = P.array;
+    let n = 0, o = 0;
+    const tri = (a, b, c) => { A[o++] = a[0]; A[o++] = a[1]; A[o++] = a[2]; A[o++] = b[0]; A[o++] = b[1]; A[o++] = b[2]; A[o++] = c[0]; A[o++] = c[1]; A[o++] = c[2]; };
+    for (const f of m.flocks) {
+      let set = crowSets.get(f);
+      if (f.x < camX - 45) { if (set) crowSets.delete(f); continue; }
+      if (f.x > camX + 130) continue;
+      if (!set) { const rnd = C.rng(Math.floor(f.x * 10) >>> 0); set = { t: 0, birds: [] }; for (let i = 0; i < f.n; i++) set.birds.push({ x: f.x + (rnd() - 0.5) * 6, y: 0, z: (rnd() - 0.5) * 3.0, vx: 3 + rnd() * 5, vy: 3.5 + rnd() * 2.5, vz: (rnd() < 0.5 ? -1 : 1) * (1.5 + rnd() * 4), ph: rnd() * 6.28, hd: rnd() * 6.28 }); crowSets.set(f, set); }
+      if (f.done) set.t += dt;
+      if (set.t > 6) continue;
+      for (const b of set.birds) {
+        if (n >= CROW_MAX) break;
+        const fly = f.done, tt = set.t, bx = b.x + (fly ? (b.vx + ride.speed() * 0.45) * tt : 0), gr = m.groundAt(b.x) || { y: f.y };
+        const by = gr.y + (fly ? 0.16 + b.vy * tt - 0.35 * tt * tt : 0.16 + 0.03 * Math.abs(Math.sin(t * 3 + b.ph))), bz = curve(bx) + b.z + (fly ? b.vz * tt : 0);
+        const hd = fly ? Math.atan2(-b.vz, b.vx + 4) : b.hd, ch = Math.cos(hd), sh = Math.sin(hd), fl = fly ? 0.95 * Math.sin(t * 19 + b.ph) : -1.25;   // 날갯짓 (앉아 있을 땐 접음)
+        const pt = (lx, ly, lz) => [bx + lx * ch + lz * sh, by + ly, bz - lx * sh + lz * ch];
+        const nose = pt(0.28, 0.03, 0), tail = pt(-0.34, 0.0, 0), top = pt(0, 0.1, 0), bot = pt(0, -0.08, 0), sl = pt(0, 0, 0.085), sr = pt(0, 0, -0.085);   // 큰부리까마귀 (몸길이 약 60 cm)
+        tri(nose, top, sl); tri(nose, sl, bot); tri(nose, bot, sr); tri(nose, sr, top); tri(tail, sl, top); tri(tail, bot, sl); tri(tail, sr, bot); tri(tail, top, sr);
+        for (const sd of [1, -1]) { const wy = Math.sin(fl) * 0.52, wz = Math.cos(fl) * 0.52 * sd, r0 = pt(0.13, 0.03, 0.06 * sd), r1 = pt(-0.14, 0.03, 0.06 * sd), t0 = pt(0.03, 0.03 + wy, 0.06 * sd + wz), t1 = pt(-0.19, 0.03 + wy * 0.8, 0.06 * sd + wz * 0.85); tri(r0, t0, r1); tri(r1, t0, t1); }
+        n++;
+      }
+    }
+    crowGeo.setDrawRange(0, n * CROW_V); P.needsUpdate = true; crowMesh.visible = n > 0;
   }
   // 매 프레임: 산사태 벽·낙석·굴러오는 바위·판자 붕괴·얼음 처마
   function updateDynamics(camX, dt, tension) {
@@ -5641,6 +5909,7 @@ void main() {
       ud.sheet.visible = ml.state === 2; if (ml.state === 2) { const k = Math.min(1, (ml.t - C.MELT.drip) / 0.6); ud.sheet.scale.set(1, 0.3 + 0.7 * k, 1); ud.sheet.position.y = 3.7 - 1.9 * k; }
       g.children[0].scale.y = ml.state === 2 ? Math.max(0.1, 1 - (ml.t - C.MELT.drip) / C.MELT.pour) : 1;
     }
+    updateHerds(camX, dt); updateCrows(camX, dt);
   }
   function stream(camX, budget) {
     const m = ride.m, k0 = Math.floor((camX - BEHIND) / CH), k1 = Math.floor((camX + AHEAD) / CH);
@@ -5663,13 +5932,13 @@ void main() {
     const b = Math.acos(Math.max(-1, Math.min(1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)))), k = a + sign * b;
     return [h[0] + Math.cos(k) * l1, h[1] + Math.sin(k) * l1];
   }
-  function poseBike(b, x, y, a, z, wheels, ca) {
-    const p = b.userData.p;
-    b.position.set(x, y, curve(x) + z); b.rotation.set(0, yawAt(x), a, 'YZX');
+  function poseBike(b, x, y, a, z, wheels, ca, trick) {
+    const p = b.userData.p, tu = trick ? Math.sin(Math.PI * trick.u) : 0, kick = trick && trick.kind === 1 ? tu : 0;
+    b.position.set(x, y, curve(x) + z); b.rotation.set(trick && trick.kind === 0 ? 1.15 * tu : 0, yawAt(x), a, 'YZX');
     for (const [nm, w] of [['wheel_r', wheels[0]], ['wheel_f', wheels[1]]]) { p[nm].position.x = w[0]; p[nm].position.y = w[1]; p[nm].rotation.z = w[2]; }
     p.crank.rotation.z = ca;
     for (const [s, sd] of [[1, 'r'], [-1, 'l']]) {
-      const foot = [BB[0] + 0.17 * s * Math.cos(ca), BB[1] + 0.17 * s * Math.sin(ca)], top = [foot[0], foot[1] + 0.03], kn = ik(HIP, top, 0.43, 0.43, 1);
+      const f0 = [BB[0] + 0.17 * s * Math.cos(ca), BB[1] + 0.17 * s * Math.sin(ca)], foot = kick ? [f0[0] + (HIP[0] - 0.66 - 0.06 * s - f0[0]) * kick, f0[1] + (HIP[1] + 0.2 + 0.08 * s - f0[1]) * kick] : f0, top = [foot[0], foot[1] + 0.03], kn = ik(HIP, top, 0.43, 0.43, 1);
       const th = p['thigh_' + sd], sh = p['shin_' + sd], so = p['shoe_' + sd];
       if (!th) continue;
       th.position.x = HIP[0]; th.position.y = HIP[1]; th.rotation.set(0, 0, Math.atan2(kn[1] - HIP[1], kn[0] - HIP[0]));
@@ -5685,6 +5954,7 @@ void main() {
     if (o.mode !== mode) { mode = o.mode; CA = mode === 'fp' ? 1 : 0; reset(); }
     if (o.ride !== ride) { reset(); ride = o.ride; }
     const fp = o.fp, dt = o.dt, ch = ride.chassis, pos = ch.getPosition(), eye = ch.getWorldPoint({ x: 0.16, y: 1.45 }), spd = ride.speed(), gnd = ride.grounded();
+    const trick = ride.pose > 0 ? { u: 1 - ride.pose / C.POSE.dur, kind: ride.posesAir % 2 } : null, zoom = 1 - 0.14 * (o.zoom || 0);   // 공중 포즈 / 슬로모션 때 화면을 살짝 당김
     let ang = ch.getAngle();
     while (ang - fp.pitch > Math.PI) ang -= 2 * Math.PI;
     while (ang - fp.pitch < -Math.PI) ang += 2 * Math.PI;
@@ -5701,8 +5971,8 @@ void main() {
       let sh = 0; if (gnd > 0 && spd > 1 && !o.paused) sh = Math.min(2.5, spd * 0.15) * (surf === 'rock' ? 0.0045 : surf === 'mud' ? 0.0022 : 0.0012);   // 돌길은 더 덜컹
       if (!o.paused) sh += 0.02 * (o.tension || 0);   // 산사태가 가까우면 화면이 떨림
       rig.position.set(eye.x, eye.y - fp.kick * 0.05, curve(eye.x));
-      rig.rotation.set(0, yawAt(eye.x) + (Math.random() - 0.5) * sh, pitch + (Math.random() - 0.5) * sh, 'YZX');
-      const fov = 2 * (33 + 9 * kz);
+      rig.rotation.set(trick ? (trick.kind ? -0.3 : 0.3) * Math.sin(Math.PI * trick.u) : 0, yawAt(eye.x) + (Math.random() - 0.5) * sh, pitch + (Math.random() - 0.5) * sh, 'YZX');   // 포즈 = 화면이 옆으로 기욺
+      const fov = 2 * (33 + 9 * kz) * zoom;
       if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = vmCam.fov = fov; camera.updateProjectionMatrix(); vmCam.updateProjectionMatrix(); }
       cam = camera; skyGroup.position.copy(rig.position);
       meBike.visible = false;
@@ -5717,11 +5987,11 @@ void main() {
       const shk = (o.paused ? 0 : (0.35 * (o.tension || 0) + 0.25 * fp.kick)) * 0.18;
       sideCam.position.set(sc.x - 0.3 * sc.d + (Math.random() - 0.5) * shk, sc.y + 0.13 * sc.d + 0.6 + (Math.random() - 0.5) * shk, sc.d);
       sideCam.lookAt(sc.x + 1.0, sc.y + 0.1, 0);
-      const sfov = 40 + 12 * Math.min(1, spd / 16);
+      const sfov = (40 + 12 * Math.min(1, spd / 16)) * zoom;
       if (Math.abs(sideCam.fov - sfov) > 0.05) { sideCam.fov = sfov; sideCam.updateProjectionMatrix(); }
       cam = sideCam; skyGroup.position.copy(sideCam.position);
       const w0 = ride.wheels[0].body, w1 = ride.wheels[1].body, l0 = ch.getLocalPoint(w0.getPosition()), l1 = ch.getLocalPoint(w1.getPosition()), a = ch.getAngle();
-      poseBike(meBike, pos.x, pos.y, a, 0, [[l0.x, l0.y, w0.getAngle() - a], [l1.x, l1.y, w1.getAngle() - a]], (w0.getAngle() - a) / 2.9);
+      poseBike(meBike, pos.x, pos.y, a, 0, [[l0.x, l0.y, w0.getAngle() - a], [l1.x, l1.y, w1.getAngle() - a]], (w0.getAngle() - a) / 2.9, trick);
       meBike.visible = true;
     }
     skyGroup.rotation.set(0, 0, fp.ga * 0.6);   // 기울이면 먼 산·하늘이 같이 기욺 (2D 1인칭의 지평선 이동과 같은 뜻, 3D에선 60%만)
@@ -5732,7 +6002,7 @@ void main() {
       if (c.got || c.x < camX - 25 || c.x > camX + 120) continue;
       if (n >= 320) break;
       dummy.position.set(c.x, c.y, curve(c.x)); dummy.rotation.set(0, t * 3 + c.x, 0); dummy.scale.setScalar(1); dummy.updateMatrix();
-      for (const ci of coinIMs) ci.im.setMatrixAt(n, new T.Matrix4().multiplyMatrices(dummy.matrix, ci.m));
+      for (const ci of coinIMs) ci.im.setMatrixAt(n, tmpM4.multiplyMatrices(dummy.matrix, ci.m));
       n++;
     }
     for (const ci of coinIMs) { ci.im.count = n; ci.im.instanceMatrix.needsUpdate = true; }
@@ -5788,16 +6058,27 @@ void main() {
   const inFrame = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
   const TEST = location.hash.indexOf('test') >= 0;
   const IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const FP_DEAD = 4, FP_FWD_MAX = 90, FP_BACK_MAX = 45;   // 1인칭 앞뒤 숙이기: 앞 90°·뒤 45°에서 최대 (본편과 같음)
+  const FP_DEAD = 4, FP_FWD_MAX = 60, FP_BACK_MAX = 45;   // 1인칭 앞뒤 숙이기: 앞 60°·뒤 45°에서 최대 (90°는 폰을 눕혀야 해서 키·터치보다 불리했음 — 검증 1109)
 
   // ---------- 저장 (본편·2.0·레이스와 겹치지 않게 fixieride.*) ----------
   const KEY = 'fixieride.v1';
   function loadSave() { try { const o = JSON.parse(localStorage.getItem(KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
-  const SAVE = Object.assign({ mute: false, best: {}, stars: {}, far: {} }, loadSave());
+  const SAVE = Object.assign({ mute: false, best: {}, stars: {}, far: {}, ctrl: 'auto', runs: 0, seenHelp: false }, loadSave());   // ctrl: auto = 폰이면 출발할 때 기울기 권한을 물음, touch = 화면 누르기
   for (const k of ['best', 'stars', 'far']) if (!SAVE[k] || typeof SAVE[k] !== 'object') SAVE[k] = {};   // far = 가장 멀리 간 거리
   if (SAVE.view !== 'fp' && SAVE.view !== 'side') SAVE.view = (isTouch && !finePointer) ? 'fp' : 'side';   // 폰 = 1인칭, PC = 옆 (본편과 같은 추천)
   function save() { try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch (e) { } }
   const num = v => (typeof v === 'number' && isFinite(v) ? v : 0);
+  // ---------- 말 (11-10 사용자 선택: 영어 기본 + 한국어 자동) ----------
+  // 고른 말이 저장돼 있으면 그것, 없으면 기기 언어가 한국어일 때만 한국어. 주소에 lang=ko|en 을 붙이면 그 말로. 시험(#test)은 한국어가 기본
+  let LANG = (() => { const q = /[?&#]lang=(ko|en)/.exec(location.search + location.hash); if (q) return q[1]; if (SAVE.lang === 'ko' || SAVE.lang === 'en') return SAVE.lang; if (TEST) return 'ko'; return /^ko/i.test(navigator.language || '') ? 'ko' : 'en'; })();
+  window.RIDE_LANG = LANG;
+  const L = (ko, en) => (LANG === 'en' ? en : ko);
+  function applyLang() {   // 화면에 박혀 있는 글 (data-en 이 있는 것)
+    document.documentElement.lang = LANG;
+    for (const el of document.querySelectorAll('[data-en]')) { if (el.dataset.ko == null) el.dataset.ko = el.innerHTML; el.innerHTML = LANG === 'en' ? el.dataset.en : el.dataset.ko; }
+    for (const el of document.querySelectorAll('[data-aria-en]')) { if (el.dataset.ariaKo == null) el.dataset.ariaKo = el.getAttribute('aria-label'); el.setAttribute('aria-label', LANG === 'en' ? el.dataset.ariaEn : el.dataset.ariaKo); }
+    $('bLang').textContent = LANG === 'en' ? '🌐 한국어' : '🌐 EN';
+  }
 
   // ---------- 그림 ----------
   const IMG = {};
@@ -5866,7 +6147,14 @@ void main() {
       combo(n) { for (let i = 0; i < Math.min(4, n); i++) tone(660 * Math.pow(1.26, i), 660 * Math.pow(1.26, i), 0.09, 'triangle', 0.12, i * 0.06); },
       flowEnd() { tone(520, 240, 0.28, 'triangle', 0.12); },
       crash() { burst(0.55, 0.6, 220); tone(220, 60, 0.45, 'sawtooth', 0.1); },
-      click() { tone(700, 700, 0.04, 'square', 0.05); }
+      click() { tone(700, 700, 0.04, 'square', 0.05); },
+      near() { tone(300, 1200, 0.28, 'sine', 0.16); tone(1500, 1500, 0.18, 'triangle', 0.12, 0.26); burst(0.5, 0.25, 140); },   // 아슬아슬: 휙 올라가는 소리 + 낮은 쿵
+      pose() { tone(520, 1040, 0.14, 'triangle', 0.1); },
+      poseOk() { tone(1040, 1560, 0.1, 'sine', 0.12); },
+      wheelie() { tone(330, 660, 0.18, 'triangle', 0.1); tone(660, 990, 0.14, 'triangle', 0.1, 0.12); },
+      herd() { for (let i = 0; i < 5; i++) setTimeout(() => burst(0.06, 0.22, 240), i * 110); },   // 발굽 소리
+      caw() { for (let i = 0; i < 3; i++) tone(620 - i * 40, 420, 0.16, 'sawtooth', 0.07, i * 0.19); burst(0.4, 0.12, 2600, 'highpass'); },   // 까악까악 + 날갯짓
+      gust() { burst(1.1, 0.3, 900, 'bandpass'); }
     };
     function setMute(m) { SAVE.mute = m; save(); if (master) master.gain.value = m ? 0 : 0.8; }
     function suspend() { if (ac && ac.state === 'running') ac.suspend(); }
@@ -5913,80 +6201,133 @@ void main() {
     },
     releaseAll() { this.keyL = this.keyR = false; this.hold = false; this.zone = null; }   // 창 포커스를 잃으면 눌린 키를 풂 (본편 버그)
   };
-  async function enableTilt() {
+  const phoneTilt = hasMotion && isTouch && !inFrame && !finePointer;   // 폰(프레임 밖)에서만 기울기
+  let tiltFailed = false, tiltTried = false;
+  async function enableTilt() {   // 사용자 탭 안에서 불러야 함 (아이폰 권한 창)
+    tiltTried = true;
     let p = null;
     try { if (typeof DeviceMotionEvent.requestPermission === 'function') p = DeviceMotionEvent.requestPermission(); } catch (e) { return tiltFail(); }
     window.addEventListener('devicemotion', Input.onMotion);
     if (p) { try { if ((await p) !== 'granted') return tiltFail(); } catch (e) { return tiltFail(); } }
     const n0 = Input.events, t0 = performance.now();
-    while (performance.now() - t0 < 1500 && Input.events === n0) await new Promise(r => setTimeout(r, 60));
+    while (performance.now() - t0 < 1200 && Input.events === n0) await new Promise(r => setTimeout(r, 50));
     if (Input.events === n0) return tiltFail();
-    Input.mode = 'tilt'; $('bTilt').textContent = '📱 기울기 켜짐'; refreshStart();
+    Input.mode = 'tilt'; tiltFailed = false; refreshStart(); return true;
   }
-  function tiltFail() { $('bTilt').textContent = '기울기를 못 써요 — 화면 누르기로'; Input.mode = isTouch ? 'touch' : 'keys'; refreshStart(); }
+  function tiltFail() { tiltFailed = true; Input.mode = isTouch ? 'touch' : 'keys'; SAVE.ctrl = 'touch'; save(); refreshStart(); return false; }   // 실패를 기억 — 다음 방문부턴 바로 화면 누르기 (📱 기울기 단추로 다시 시도)
+  let toastUntil = 0;
+  function toast(msg, sec) { const t = $('hToast'); t.textContent = msg; t.style.display = 'block'; toastUntil = performance.now() + (sec || 3.5) * 1000; }
+  function ctrlLabel() { return Input.mode === 'tilt' ? L('📱 기울기 (켜짐)', '📱 Tilt (on)') : tiltFailed ? L('기울기를 못 써요 — 화면 누르기로', "Tilt unavailable — using touch") : SAVE.ctrl === 'touch' ? L('👆 터치 (📱 기울기로 바꾸기)', '👆 Touch (switch to 📱 tilt)') : L('📱 기울기', '📱 Tilt'); }
+  // 조작법 카드: 지금 조작 방식에 맞춰
+  function helpHtml() {
+    const tilt = Input.mode === 'tilt' || (phoneTilt && SAVE.ctrl !== 'touch' && !tiltFailed), touch = !tilt && Input.mode === 'touch';
+    const speed = tilt ? (SAVE.view === 'fp' ? ['📱', L('<b>폰을 앞으로 숙이면</b> 빨라지고, 뒤로 젖히면 느려져요. 세워 든 각도가 기준이에요.', '<b>Tip the phone forward</b> to speed up, back to slow down. Holding it upright is neutral.')] : ['📱', L('<b>폰을 핸들처럼 기울이면</b> 길이 기울어요. 오른쪽 = 내리막(빨라짐), 왼쪽 = 느려짐.', '<b>Tilt the phone like handlebars</b> and the trail tilts. Right = downhill (faster), left = slower.')])
+      : touch ? ['👈', L('왼쪽 아래 막대를 누른 채 <b>오른쪽으로 밀면 빨라지고</b>, 왼쪽으로 밀면 느려져요.', 'Hold the bar at the bottom left: <b>slide right to speed up</b>, left to slow down.')] : ['⌨️', L('<b>→ 또는 D</b> = 앞으로 기울이기(빨라짐), <b>← 또는 A</b> = 뒤로 기울이기(느려짐).', '<b>→ or D</b> = lean forward (faster), <b>← or A</b> = lean back (slower).')];
+    const jump = tilt ? ['👆', L('화면 아무 데나 <b>톡 = 점프</b>. 턱 끝에서 뛰면 멀리 가요.', '<b>Tap anywhere = jump.</b> Jump at the very edge of a ramp to fly far.')] : touch ? ['🔴', L('오른쪽 <b>점프 단추</b>를 톡. 턱 끝에서 뛰면 멀리 가요.', 'Tap the <b>jump button</b> on the right. Jump at the very edge of a ramp to fly far.')] : ['␣', L('<b>Space = 점프</b>. 턱 끝에서 뛰면 멀리 가요.', '<b>Space = jump.</b> Jump at the very edge of a ramp to fly far.')];
+    const flip = ['🔄', L('공중에서 <b>길게 누르면 백플립</b>(+500), <b>짧게 톡 = 포즈</b>(+200). 백플립·위 길이 <b>흐름(최고 속도)</b>을 올려요. 바퀴를 땅과 나란히 대면 <b>완벽 착지</b>(+150).', 'In the air, <b>hold = backflip</b> (+500), <b>quick tap = pose</b> (+200). Flips and high roads raise your <b>flow (top speed)</b>. Land with both wheels flat for a <b>perfect landing</b> (+150).')];
+    const more = ['✨', L('뜬 뒤 <b>앞으로 더 숙이고 길게 = 앞구르기</b>(+600) · 땅에서 <b>뒤로 끝까지 젖히면 윌리</b> · 위험을 <b>아슬아슬</b>하게 피하면 보너스.', 'After takeoff, <b>lean further forward + hold = frontflip</b> (+600) · on the ground, <b>lean all the way back = wheelie</b> · dodge danger by a hair for a <b>close-call</b> bonus.')];
+    const extra = tilt ? ['↔', L('방향이 반대로 느껴지면 일시정지 → <b>방향 반대로</b>.', 'If the direction feels backwards: pause → <b>Reverse direction</b>.')] : ['⏸', (touch ? L('위쪽 ⏸ 단추', 'The ⏸ button up top') : L('P 또는 Esc', 'P or Esc')) + L(' = 일시정지 · 소리·보기도 거기서 바꿔요.', ' = pause · sound and view are in there too.')];
+    return [speed, jump, flip, more, extra].map(([i, t]) => '<div><span>' + i + '</span><span>' + t + '</span></div>').join('');
+  }
+  function openHelp() { $('bHelpOk').textContent = L('알겠어요', 'Got it'); $('helpBody').innerHTML = helpHtml(); $('ovStart').classList.remove('show'); $('ovPause').classList.remove('show'); $('ovHelp').classList.add('show'); SAVE.seenHelp = true; save(); }
 
   // ---------- 상태 ----------
   let ride = null, mode = 'daily', seed = 0, playing = false, paused = false, over = false, phiDeg = 0, last = 0, jumpBuf = 0, portraitOk = false;
   const view = { x: 8, y: 2, s: 40 };
   let popups = [], parts = [], ghostRec = [], ghost = null, recT = 0;
+  // 슬로모션 (아슬아슬·완주 순간): 물리 시간을 잠깐 0.35배로. 한 번 쓰면 5초 쉼. 화면은 살짝 당겨지고 가장자리가 어두워짐
+  let slowT = 0, slowCool = 0, zoomK = 0, lastRun = null, shot = null, shotWant = 0, shotAt = -9;
+  function slowmo(sec) { if (slowCool > 0) return; slowT = sec; slowCool = 5; }
+  function shotSoon() { if (ride && ride.time - shotAt > 2) shotWant = 2; }   // 멋진 순간을 기록 카드용으로 찍어 둠 (두 프레임 뒤 — 글자가 뜬 다음)
   const today = () => { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };
   const bestKey = () => mode === 'daily' ? 'd' + seed : 'free';
-  const fmt = n => Math.round(n).toLocaleString('ko-KR');
-  const GOAL_TXT = { dist: n => n + 'm 가기', score: n => fmt(n) + '점', flips: n => '백플립 ' + n + '번', maxStreak: n => '완벽 착지 ' + n + '연속', maxCombo: n => '흐름 ×' + (n + 1), coins: n => '코인 ' + n + '개', uppers: n => '위 길 ' + n + '번', rockJumps: n => '낙석 ' + n + '개 넘기', surges: n => '돌진 ' + n + '번 떨치기' };
-  const SLIDE_NAME = { slide: '산사태', flood: '급류', avalanche: '눈사태' }, SLIDE_ICON = { slide: '🌋', flood: '🌊', avalanche: '🏔' };
+  const fmt = n => Math.round(n).toLocaleString(LANG === 'en' ? 'en-US' : 'ko-KR');
+  const GOAL_TXT = { dist: n => L(n + 'm 가기', 'Ride ' + fmt(n) + ' m'), score: n => L(fmt(n) + '점', fmt(n) + ' pts'), flips: n => L('백플립 ' + n + '번', n + (n > 1 ? ' flips' : ' flip')), maxStreak: n => L('완벽 착지 ' + n + '연속', n + ' perfect landings in a row'), maxCombo: n => L('흐름 ×' + (n + 1), 'Flow ×' + (n + 1)), coins: n => L('코인 ' + n + '개', n + ' coins'), uppers: n => L('위 길 ' + n + '번', n + ' high roads'), rockJumps: n => L('낙석 ' + n + '개 넘기', 'Jump ' + n + ' rocks'), surges: n => L('돌진 ' + n + '번 떨치기', 'Outrun ' + n + ' surges'),
+    poses: n => L('공중 포즈 ' + n + '번', n + ' air poses'), wheelies: n => L('윌리 ' + n + '번', n + ' wheelies') };
+  const SLIDE_KO = { slide: '산사태', flood: '급류', avalanche: '눈사태' }, SLIDE_EN = { slide: 'Landslide', flood: 'Flood', avalanche: 'Avalanche' }, SLIDE_ICON = { slide: '🌋', flood: '🌊', avalanche: '🏔' };
+  const SLIDE_NAME = new Proxy({}, { get: (_, k) => (LANG === 'en' ? SLIDE_EN : SLIDE_KO)[k] });
   const GOAL_ICON = ['📏', '🤸', '🪙'];
-  const PATCH_HINT = { ice: '🧊 빙판 — 확 빨라지고 잘 안 서요', rock: '🪨 돌길 — 덜컹덜컹, 속도가 쭉 빠져요', mud: '💦 진흙 — 빠르게 들어가세요, 속도를 잡아먹어요', wet: '🌧 젖은 길 — 조금 미끄럽고 브레이크가 덜 들어요' };
+  const PATCH_HINT = { ice: ['🧊 빙판 — 확 빨라지고 잘 안 서요', "🧊 Ice — you speed up fast and can't slow down"], rock: ['🪨 돌길 — 덜컹덜컹, 속도가 쭉 빠져요', '🪨 Rocks — bumpy, you lose speed'], mud: ['💦 진흙 — 빠르게 들어가세요, 속도를 잡아먹어요', '💦 Mud — go in fast, it eats your speed'], wet: ['🌧 젖은 길 — 조금 미끄럽고 속도가 덜 줄어요', '🌧 Wet — a bit slippery, harder to slow down'] };
   const goalDone = (g, st) => num(st[g.k]) >= g.n;
 
   function newSeed(m) { mode = m; seed = m === 'daily' ? today() : 1 + Math.floor(Math.random() * 999999); }
   function prepare() {
     ride = new C.Ride(seed); over = false; playing = false; paused = false;
     popups = []; parts = []; ghostRec = []; recT = 0;
+    slowT = 0; slowCool = 0; shot = null; shotWant = 0; shotAt = -9;
     ghost = null;
     if (mode === 'daily') { try { const g = JSON.parse(localStorage.getItem('fixieride.ghost.' + seed) || 'null'); if (Array.isArray(g) && g.length > 3) ghost = g; } catch (e) { } }
     const p = ride.chassis.getPosition(); view.x = p.x + 4; view.y = p.y + 1.5;
   }
   function refreshStart() {
-    $('sMode').textContent = mode === 'daily' ? '오늘의 산' : '자유 주행';
-    $('sSeed').textContent = mode === 'daily' ? '#' + String(seed).slice(4) + ' (모두 같은 산, 매일 바뀜)' : '#' + seed;
-    $('bMode').textContent = mode === 'daily' ? '자유 주행 (무작위 산)' : '오늘의 산으로';
-    const gs = ride.goals, got = num(SAVE.stars[bestKey()]);
+    $('sMode').textContent = mode === 'daily' ? L('오늘의 산', "Today's mountain") : L('자유 주행', 'Free ride');
+    $('sSeed').textContent = mode === 'daily' ? '#' + String(seed).slice(4) + L(' · 오늘은 모두 같은 산', ' · same mountain for everyone today') : '#' + seed + L(' · 무작위 산', ' · random mountain');
+    $('bMode').textContent = mode === 'daily' ? L('🎲 무작위 산', '🎲 Random') : L('📅 오늘의 산', '📅 Today');
+    const gs = ride.goals, got = Math.min(3, num(SAVE.stars[bestKey()]));
     $('sGoals').innerHTML = gs.map((g, i) => '<span class="goal">' + GOAL_ICON[i] + ' ' + GOAL_TXT[g.k](g.n) + '</span>').join('');
     const b = SAVE.best[bestKey()];
-    $('sBest').textContent = b ? '내 기록 ' + fmt(num(b.score)) + '점 · ' + fmt(num(b.dist)) + 'm' + (mode === 'daily' ? ' · 별 ' + got + '/3' + (ghost ? ' · 👻 내 기록과 함께 달림' : '') : '') : '목표 3개 — 무엇을 노릴지 골라서 달려 보세요';
-    $('sKeys').innerHTML = Input.mode === 'tilt'
-      ? (SAVE.view === 'fp' ? '📱 <b>폰을 앞으로 숙이면 내리막(빨라짐)</b>, 뒤로 젖히면 브레이크. 세워 든 각도가 0°.' : '📱 <b>폰을 기울이면 길이 기울어요</b> (오른쪽 = 내리막). 지금 든 각도가 0°.') + '<br>화면 아무 데나 <b>톡 = 점프</b> · 공중에서 <b>길게 누르기 = 백플립</b> · 공중에서 기울이면 앞뒤 자세'
+    $('sBest').textContent = b ? L('내 기록 ' + fmt(num(b.score)) + '점 · ' + fmt(num(b.dist)) + 'm', 'Best ' + fmt(num(b.score)) + ' pts · ' + fmt(num(b.dist)) + ' m') + (mode === 'daily' ? L(' · 별 ', ' · stars ') + got + '/3' + (ghost ? L(' · 👻 내 기록과 함께', ' · 👻 race your best') : '') : '') : L('목표 3개 중 무엇을 노릴지 골라요 — 하나에 별 하나', 'Three goals, one star each — pick what to go for');
+    const willTilt = Input.mode === 'tilt' || (phoneTilt && SAVE.ctrl !== 'touch' && !tiltFailed);
+    $('sKeys').innerHTML = willTilt
+      ? (SAVE.view === 'fp' ? L('📱 <b>폰을 앞으로 숙이면 내리막(빨라짐)</b>, 뒤로 젖히면 느려져요. 세워 든 각도가 0°.', '📱 <b>Tip the phone forward = downhill (faster)</b>, back = slower. Upright is 0°.') : L('📱 <b>폰을 기울이면 길이 기울어요</b> (오른쪽 = 내리막). 출발할 때 든 각도가 0°.', '📱 <b>Tilt the phone and the trail tilts</b> (right = downhill). Your starting angle is 0°.')) + L('<br>화면 아무 데나 <b>톡 = 점프</b> · 공중에서 <b>길게 누르기 = 백플립</b>, <b>톡 = 포즈</b>', '<br><b>Tap anywhere = jump</b> · in the air <b>hold = backflip</b>, <b>tap = pose</b>') + (Input.mode !== 'tilt' ? L('<br><span style="color:#6b7a87">출발하면 기울기 센서 권한을 물어봐요 — 허용해 주세요.</span>', '<br><span style="color:#6b7a87">Starting will ask for motion-sensor access — please allow it.</span>') : '')
       : Input.mode === 'touch'
-        ? '👈 왼쪽 아래 막대를 누른 채 <b>오른쪽 = 내리막(빨라짐), 왼쪽 = 브레이크</b><br>👉 오른쪽 버튼 <b>톡 = 점프</b> · 공중에서 <b>길게 = 백플립</b> · 공중에서 막대 = 앞뒤 자세'
-        : '⌨️ <b>→ / D = 앞으로 기울이기(빨라짐)</b> · ← / A = 뒤로(브레이크)<br><b>Space = 점프</b> · 공중에서 <b>Space 길게 = 백플립</b> · 공중에서 ←→ = 앞뒤 자세 · R 다시 · P 일시정지 · M 소리';
-    $('bTilt').style.display = hasMotion && isTouch && !inFrame ? '' : 'none';
+        ? L('👈 왼쪽 아래 막대를 누른 채 <b>오른쪽 = 내리막(빨라짐), 왼쪽 = 느려짐</b><br>👉 오른쪽 버튼 <b>톡 = 점프</b> · 공중에서 <b>길게 = 백플립</b>, <b>톡 = 포즈</b>', '👈 Hold the bar at the bottom left: <b>right = downhill (faster), left = slower</b><br>👉 Right button: <b>tap = jump</b> · in the air <b>hold = backflip</b>, <b>tap = pose</b>')
+        : L('⌨️ <b>→ / D = 앞으로 기울이기(빨라짐)</b> · ← / A = 뒤로(느려짐)<br><b>Space = 점프</b> · 공중에서 <b>Space 길게 = 백플립</b>, <b>톡 = 포즈</b> · R 다시 · P 일시정지 · M 소리', '⌨️ <b>→ / D = lean forward (faster)</b> · ← / A = lean back (slower)<br><b>Space = jump</b> · in the air <b>hold Space = backflip</b>, <b>tap = pose</b> · R restart · P pause · M sound');
+    const go = $('bGo'); go.disabled = false;
+    go.textContent = willTilt && Input.mode !== 'tilt' ? L('📱 기울여서 출발', '📱 Tilt to ride') : Input.mode === 'keys' ? L('출발 (Space)', 'Ride (Space)') : L('출발', 'Ride');
+    $('bTilt').style.display = phoneTilt ? '' : 'none'; $('bTilt').textContent = ctrlLabel();
     $('bInvert').style.display = Input.mode === 'tilt' ? '' : 'none';
-    $('bInvert').textContent = SAVE.invert ? '↔ 방향 반대로 (켜짐)' : '↔ 방향 반대로';
-    $('bViewS').textContent = SAVE.view === 'fp' ? '👁 보기: 1인칭 (V)' : '👁 보기: 옆 (V)';
+    $('bInvert').textContent = SAVE.invert ? L('↔ 방향 반대로 (켜짐)', '↔ Reverse direction (on)') : L('↔ 방향 반대로', '↔ Reverse direction');
+    $('bViewS').textContent = SAVE.view === 'fp' ? L('👁 1인칭', '👁 First person') : L('👁 옆에서', '👁 Side view');
     $('bView').textContent = SAVE.view === 'fp' ? '🎥' : '👁';
+    document.body.classList.toggle('fp', SAVE.view === 'fp');
   }
-  function showOnly(id) { for (const o of ['ovStart', 'ovPause', 'ovResult']) $(o).classList.toggle('show', o === id); }
+  function refreshPause() {
+    $('bResume').textContent = Input.mode === 'keys' ? L('계속 (P)', 'Resume (P)') : L('계속', 'Resume');
+    $('pMute').textContent = SAVE.mute ? L('🔇 소리 꺼짐', '🔇 Sound off') : L('🔊 소리 켜짐', '🔊 Sound on');
+    $('pView').textContent = SAVE.view === 'fp' ? L('👁 보기: 1인칭', '👁 View: first person') : L('👁 보기: 옆', '👁 View: side');
+    $('pTilt').style.display = phoneTilt ? '' : 'none'; $('pTilt').textContent = Input.mode === 'tilt' ? L('📱 조작: 기울기', '📱 Controls: tilt') : L('👆 조작: 터치', '👆 Controls: touch');
+    $('pInvert').style.display = Input.mode === 'tilt' ? '' : 'none'; $('pInvert').textContent = SAVE.invert ? L('↔ 방향 반대로 (켜짐)', '↔ Reverse direction (on)') : L('↔ 방향 반대로', '↔ Reverse direction');
+  }
+  function showOnly(id) { for (const o of ['ovStart', 'ovPause', 'ovResult', 'ovHelp', 'ovShare']) $(o).classList.toggle('show', o === id); }
+  let wakeLock = null;
+  async function keepAwake() { try { if (navigator.wakeLock && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) { wakeLock = null; } }
+  function letSleep() { try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { wakeLock = null; } }   // 일시정지·끝나면 화면 잠금 방지를 놓음 (배터리)
   function startRun() {
     A.ensure(); A.SFX.click();
     if (over || !ride || ride.time > 0) prepare();
     if (Input.mode === 'tilt') Input.calibrate();
-    playing = true; paused = false; over = false; jumpBuf = 0;
-    showOnly(null); setControls(true);
+    playing = true; paused = false; over = false; jumpBuf = 0; runStart = performance.now();
+    SAVE.runs = num(SAVE.runs) + 1; save();
+    showOnly(null); setControls(true); keepAwake();
   }
+  // 출발: 폰이면 첫 출발 때 기울기 권한을 묻고(탭 안에서), 안 되면 화면 누르기로 바로 시작
+  async function go() {
+    A.ensure();
+    if (phoneTilt && SAVE.ctrl !== 'touch' && Input.mode !== 'tilt' && !tiltTried) {
+      $('bGo').disabled = true; $('bGo').textContent = L('센서 확인 중…', 'Checking sensor…');
+      if (!(await enableTilt())) { startRun(); toast(L('기울기를 못 써서 화면 누르기로 해요', "Tilt isn't available — using touch controls"), 5); return; }   // 바로 출발 (11-10: 누르자마자 달리기) — 조작은 달리면서 아래 한 줄 안내로
+    }
+    startRun();
+  }
+  let runStart = 0, touchUI = false;
   function setControls(on) {
     $('hud').style.display = on ? 'block' : 'none';
     for (const id of ['bPause', 'bRestart', 'bMute', 'bView']) $(id).style.display = on ? 'block' : 'none';
-    const touchUI = on && Input.mode === 'touch';
+    if (isTouch && !finePointer) $('bRestart').style.display = 'none';   // 폰: 오탭으로 판을 버리지 않게 — 다시는 일시정지 메뉴에
+    touchUI = on && Input.mode === 'touch';
+    document.body.classList.toggle('touchui', touchUI);
     $('tLeft').style.display = touchUI ? 'block' : 'none';
     $('tJump').style.display = touchUI ? 'flex' : 'none';
   }
-  function pause() { if (!playing || over || paused) return; paused = true; Input.releaseAll(); A.loops(0, false, false); A.rumble(0); A.suspend(); showOnly('ovPause'); }
-  function resume() { if (!paused) return; paused = false; A.ensure(); showOnly(null); last = performance.now(); }
+  function pause() { if (!playing || over || paused) return; paused = true; Input.releaseAll(); resetTouchUI(); letSleep(); A.loops(0, false, false); A.rumble(0); A.suspend(); refreshPause(); showOnly('ovPause'); }
+  let graceUntil = 0;   // 재개 뒤 1초: 손·자세를 다시 잡을 시간 (물리 멈춤, 화면은 그려짐)
+  function resume() { if (!paused) return; paused = false; A.ensure(); showOnly(null); last = performance.now(); if (Input.mode === 'tilt') { Input.calibrate(); Input.smoothP = Input.rawP = Input.pitchDeg(); } graceUntil = performance.now() + 1000; toast(Input.mode === 'tilt' ? L('📱 지금 자세가 기준 — 출발!', '📱 This angle is neutral — go!') : L('출발!', 'Go!'), 1); keepAwake(); }
   function toTitle() { playing = false; paused = false; prepare(); refreshStart(); showOnly('ovStart'); setControls(false); A.loops(0, false, false); }
   function press() {
     A.ensure();
     if (!playing || paused || over) return;
-    Input.hold = true;
+    Input.hold = true; ride.press();   // 공중에서 짧게 톡 = 포즈, 길게 = 공중제비 (코어가 구분)
     if (!ride.jump()) jumpBuf = 0.12;   // 막 착지하기 직전에 눌러도 점프
   }
   function release() { Input.hold = false; }
@@ -6002,28 +6343,40 @@ void main() {
       else if (e.t === 'land') {
         A.SFX.land(e.grade); fp.kick = Math.min(1.5, (e.air || 0.5) * (e.grade === 'bad' ? 1.4 : 0.8));
         burstParts(p.x, p.y - 0.4, e.grade === 'bad' ? 14 : 8, e.grade === 'perfect' ? '#ffe680' : '#c9a27a', 3);
-        if (e.flips) { A.SFX.combo(e.combo); popup(e.flips > 1 ? '더블 백플립!' : '백플립!', '#ffd23f', true); }
-        if (e.grade === 'perfect') popup('완벽 착지' + (e.pts ? ' +' + fmt(e.pts) : ''), '#ffe680');
+        if (e.flips) { A.SFX.combo(e.combo); popup(e.front ? (e.flips > 1 ? L('더블 앞구르기!', 'Double frontflip!') : L('앞구르기!', 'Frontflip!')) : (e.flips > 1 ? L('더블 백플립!', 'Double backflip!') : L('백플립!', 'Backflip!')), '#ffd23f', true); shotSoon(); }
+        if (e.poses) popup(L('공중 포즈', 'Air pose') + (e.poses > 1 ? ' ×' + e.poses : '') + '!', '#b8f5c8', !e.flips);
+        if (e.poseFail) popup(L('포즈가 늦었어요', 'Pose too late'), '#ffd0c8');
+        if (e.grade === 'perfect') popup(L('완벽 착지', 'Perfect landing') + (e.pts ? ' +' + fmt(e.pts) : ''), '#ffe680');
         else if (e.grade === 'good' && e.pts) popup('+' + fmt(e.pts), '#fff');
-        else if (e.grade === 'bad') popup(e.lost ? '나쁜 착지 — 흐름 끊김' : '나쁜 착지', '#ff9b8a');
+        else if (e.grade === 'bad') popup(e.lost ? L('나쁜 착지 — 흐름 끊김', 'Rough landing — flow lost') : L('나쁜 착지', 'Rough landing'), '#ff9b8a');
       }
-      else if (e.t === 'points' && e.why === 'upper') { A.SFX.combo(ride.combo); popup('위 길 +' + fmt(e.n), '#9fe3ff', true); }
-      else if (e.t === 'flowEnd') { A.SFX.flowEnd(); popup('흐름 끊김 (땅에서 4초)', '#ffd0c8'); }
+      else if (e.t === 'points' && e.why === 'upper') { A.SFX.combo(ride.combo); popup(L('위 길 +', 'High road +') + fmt(e.n), '#9fe3ff', true); }
+      else if (e.t === 'points' && e.why === 'wheelie') { A.SFX.wheelie(); popup(L('윌리 +', 'Wheelie +') + fmt(e.n), '#b8f5c8'); }
+      else if (e.t === 'poseStart') A.SFX.pose();
+      else if (e.t === 'pose') A.SFX.poseOk();
+      else if (e.t === 'near') { A.SFX.near(); slowmo(0.55); shotSoon(); popup((e.kind === 'slide' ? L('아슬아슬 탈출!', 'Narrow escape!') : e.kind === 'rock' ? L('낙석이 스쳤다!', 'Rock just missed!') : e.kind === 'melt' ? L('쏟아지기 직전 통과!', 'Through before the ice fell!') : L('노루 떼 사이로!', 'Right behind the deer!')) + ' +' + fmt(e.n), '#7df9ff', true); }
+      else if (e.t === 'herd') { A.SFX.herd(); popup(L('🦌 노루 떼가 길을 건너요!', '🦌 Deer crossing!'), '#f3d9a8', true); }
+      else if (e.t === 'herdHit') { A.SFX.hitRock(); fp.kick = 1.2; popup(L('노루 떼에 막혔어요!', 'Blocked by the deer!'), '#ff9b8a', true); }
+      else if (e.t === 'herdJump') { A.SFX.coin(); popup(L('노루 떼 넘기 +', 'Deer hop +') + fmt(Math.round(C.PTS.herd * ride.mult())), '#ffe680'); }
+      else if (e.t === 'crows') { if (Math.abs(e.x - p.x) < 40) A.SFX.caw(); if (e.fast) popup(L('까마귀 떼 돌파 +', 'Through the crows +') + fmt(Math.round(C.PTS.crows * ride.mult())), '#d9d9e6'); }
+      else if (e.t === 'gust') { A.SFX.gust(); popup(e.dir > 0 ? L('💨 뒤바람 — 타고 달려요!', '💨 Tailwind — ride it!') : L('💨 맞바람 — 숙여서 버텨요!', '💨 Headwind — lean in!'), '#d6f0ff'); }
+      else if (e.t === 'flowEnd') { A.SFX.flowEnd(); popup(L('흐름 끊김 (땅에서 4초)', 'Flow lost (4 s on the ground)'), '#ffd0c8'); }
       else if (e.t === 'crash') { if (e.kind === 'slide') A.SFX.swept(); else A.SFX.crash(); burstParts(p.x, p.y, 22, '#6b4a2e', 5); fp.kick = 1.6; fp.crash = 1; }
-      else if (e.t === 'surgeWarn') { A.SFX.warn(); popup('⚠ ' + SLIDE_NAME[ride.slide.kind] + ' 돌진!', '#ff6b4a', true); }
+      else if (e.t === 'surgeWarn') { A.SFX.warn(); popup('⚠ ' + SLIDE_NAME[ride.slide.kind] + L(' 돌진!', ' surge!'), '#ff6b4a', true); }
       else if (e.t === 'surge') { fp.kick = Math.max(fp.kick, 0.8); }
-      else if (e.t === 'surgeEnd') { A.SFX.combo(3); popup('떨쳐냈다! +' + fmt(Math.round(C.PTS.surge * ride.mult())), '#ffd23f', true); }
-      else if (e.t === 'swept') { A.SFX.swept(); fp.kick = 2.2; fp.brown = 1; burstParts(p.x, p.y + 0.5, 30, '#6b4a2e', 6); popup('휩쓸렸다! 한 번 더 잡히면 끝', '#ff9b8a', true); }
+      else if (e.t === 'surgeOff') { popup(L('돌진이 멈췄다 — 동굴은 천천히', 'Surge called off — take the cave slow'), '#cfeefc'); }
+      else if (e.t === 'surgeEnd') { A.SFX.combo(3); popup(L('떨쳐냈다! +', 'Outran it! +') + fmt(Math.round(C.PTS.surge * ride.mult())), '#ffd23f', true); }
+      else if (e.t === 'swept') { A.SFX.swept(); fp.kick = 2.2; fp.brown = 1; burstParts(p.x, p.y + 0.5, 30, '#6b4a2e', 6); popup(L('휩쓸렸다! 한 번 더 잡히면 끝', 'Swept! Once more and it is over'), '#ff9b8a', true); }
       else if (e.t === 'rockFall') { A.SFX.rockFall(); }
       else if (e.t === 'rockLand') { const d = Math.abs(e.x - p.x); A.SFX.thud(d < 12); if (d < 12) fp.kick = Math.max(fp.kick, 0.5); burstParts(e.x, (ride.m.groundAt(e.x) || { y: p.y }).y, 10, '#c8a87e', 3); }
-      else if (e.t === 'rockJump') { A.SFX.coin(); popup('낙석 넘기 +' + fmt(Math.round(C.PTS.rockJump * ride.mult())), '#ffe680'); }
-      else if (e.t === 'boulderHit') { A.SFX.hitRock(); fp.kick = 1.4; popup('바위에 치였다!', '#ff9b8a', true); }
-      else if (e.t === 'deckCollapse') { A.SFX.crack(); popup('판자가 무너진다 — 멈추지 마!', '#ffd0c8'); }
-      else if (e.t === 'landmark') { const a = e.alt != null ? ' · 해발 ' + fmt(Math.round(e.alt / 10) * 10) + 'm' : ''; popup('⛰ ' + e.name + a + (e.id === 'top' ? ' — 하산 시작!' : ''), '#f3e6c8', true); }
-      else if (e.t === 'hallaDone') { A.SFX.combo(4); popup('🎉 한라산 하산 완주! +' + fmt(e.n), '#ffd23f', true); }
+      else if (e.t === 'rockJump') { A.SFX.coin(); popup(L('낙석 넘기 +', 'Rock hop +') + fmt(Math.round(C.PTS.rockJump * ride.mult())), '#ffe680'); }
+      else if (e.t === 'boulderHit') { A.SFX.hitRock(); fp.kick = 1.4; popup(L('바위에 치였다!', 'Hit by a boulder!'), '#ff9b8a', true); }
+      else if (e.t === 'deckCollapse') { A.SFX.crack(); popup(L('판자가 무너진다 — 멈추지 마!', "The planks are falling — don't stop!"), '#ffd0c8'); }
+      else if (e.t === 'landmark') { const a = e.alt != null ? L(' · 해발 ', ' · ') + fmt(Math.round(e.alt / 10) * 10) + 'm' : ''; popup('⛰ ' + L(e.name, e.en || e.name) + a + (e.id === 'top' ? L(' — 하산 시작!', ' — here we go!') : ''), '#f3e6c8'); if (e.id !== 'top') shotSoon(); }
+      else if (e.t === 'hallaDone') { A.SFX.combo(4); slowmo(0.7); shotSoon(); popup(L('🎉 한라산 하산 완주! +', '🎉 Hallasan descent complete! +') + fmt(e.n), '#ffd23f', true); }
       else if (e.t === 'meltDrip') { A.SFX.drip(); }
       else if (e.t === 'meltPour') { A.SFX.splash(); }
-      else if (e.t === 'meltHit') { A.SFX.splash(); fp.kick = 1.3; fp.ice = 1; popup('얼음을 뒤집어썼다!', '#cfeefc', true); for (let i = 0; i < 8; i++) lens.push({ x: Math.random(), y: Math.random() * 0.9, r: 0.012 + Math.random() * 0.025, t: 0, life: 3 + Math.random() * 2, mud: false, slide: 0.02 + Math.random() * 0.03 }); }
+      else if (e.t === 'meltHit') { A.SFX.splash(); fp.kick = 1.3; fp.ice = 1; popup(L('얼음을 뒤집어썼다!', 'Buried in ice!'), '#cfeefc', true); for (let i = 0; i < 8; i++) lens.push({ x: Math.random(), y: Math.random() * 0.9, r: 0.012 + Math.random() * 0.025, t: 0, life: 3 + Math.random() * 2, mud: false, slide: 0.02 + Math.random() * 0.03 }); }
     }
     if (ride.result && ride.result.kind === 'slide') A.rumble(0);
     if (ride.hold && ride.inAir && ride.airT > 0.2 && !ride._flipSnd) { A.SFX.flip(); ride._flipSnd = true; }
@@ -6031,7 +6384,7 @@ void main() {
   }
 
   function endRun() {
-    over = true; playing = false; Input.releaseAll(); A.loops(0, false, false); A.rumble(0);
+    over = true; playing = false; Input.releaseAll(); letSleep(); A.loops(0, false, false); A.rumble(0);
     const st = ride.result.stats, k = bestKey(), prev = SAVE.best[k], isBest = !prev || st.score > num(prev.score);
     const stars = ride.goals.filter(g => goalDone(g, st)).length, starsBefore = num(SAVE.stars[k]), farBefore = num(SAVE.far[k]), hadFar = SAVE.far[k] != null;
     if (isBest) SAVE.best[k] = { score: st.score, dist: Math.round(st.dist) };
@@ -6045,25 +6398,35 @@ void main() {
     const x = ride.chassis.getPosition().x, kind = ride.result.kind;
     const cave = ride.m.feats.find(f => f.type === 'cave' && x > f.x0 - 3 && x < f.x1 + 3);
     const sk = SLIDE_NAME[ride.slide.kind];
-    $('rTitle').textContent = kind === 'gap' ? '틈에 빠졌어요' : kind === 'slide' ? sk + '에 휩쓸렸어요' : kind === 'rock' ? '바위에 부딪혔어요' : '넘어졌어요';
-    $('rWhy').textContent = kind === 'slide' ? '🌋 느려지면 ' + sk + '가 따라잡아요 — 진흙·돌길·동굴 앞에서 여유를 벌어 두고, 완벽 착지·백플립으로 흐름 속도를 쌓으세요'
-      : kind === 'rock' ? '🪨 그림자가 보이면 바위가 떨어져요 — 바위 3~5 m 앞에서 점프. 뒤에서 굴러오는 바위도 점프로 넘겨요'
-      : cave ? '🐢 동굴에선 뒤로 기울여 천천히 — 빠르면 둔덕에서 튀어 천장에 머리를 박아요'
-      : kind === 'gap' ? '턱 앞에서 속도를 내고, 턱 끝에서 점프하면 더 멀리 날아요'
-      : '착지할 때 자전거를 땅 경사에 맞추면 "완벽 착지" — 공중에서 기울여 앞뒤를 맞춰 보세요';
+    $('rTitle').textContent = kind === 'gap' ? L('틈에 빠졌어요', 'Fell into the gap') : kind === 'slide' ? L(sk + '에 휩쓸렸어요', 'Swept away by the ' + sk.toLowerCase()) : kind === 'rock' ? L('바위에 부딪혔어요', 'Hit a rock') : L('넘어졌어요', 'Wiped out');
+    const why = ride.crashWhy;
+    const ctrlHow = Input.mode === 'tilt' ? (SAVE.view === 'fp' ? L('폰을 앞으로 숙이면', 'tip the phone forward') : L('폰을 오른쪽으로 기울이면', 'tilt the phone right')) : Input.mode === 'touch' ? L('왼쪽 막대를 오른쪽으로 밀면', 'slide the left bar to the right') : L('→ 키를 누르면', 'press →');
+    $('rWhy').textContent = kind === 'slide' && st.dist < 3 ? L('🌋 출발을 못 한 채 ' + sk + '가 왔어요 — ' + ctrlHow + ' 속도가 나요. 다음 판은 바로 움직여 보세요', '🌋 The ' + sk.toLowerCase() + ' arrived before you got going — ' + ctrlHow + ' to pick up speed. Move right away next time')
+      : kind === 'slide' ? L('🌋 느려지면 ' + sk + '가 따라잡아요 — 진흙·돌길·동굴 앞에서 여유(20 m+)를 벌어 두고, 백플립·위 길로 흐름 속도를 올리세요', '🌋 Slow down and the ' + sk.toLowerCase() + ' catches up — build a 20 m+ lead before mud, rocks and caves, and raise your flow with flips and high roads')
+      : kind === 'rock' ? L('🪨 그림자가 보이면 바위가 떨어져요 — 바위 3~5 m 앞에서 점프. 뒤에서 굴러오는 바위도 점프로 넘겨요', '🪨 A shadow means a rock is falling — jump 3–5 m before it. Hop the boulders rolling up from behind, too')
+      : cave ? L('🐢 동굴에선 뒤로 기울여 천천히 — 빠르면 둔덕에서 튀어 천장에 머리를 박아요', '🐢 Lean back and go slow in caves — too fast and the bumps bounce you into the ceiling')
+      : kind === 'gap' ? L('턱 앞에서 속도를 내고, 턱 끝에서 점프하면 더 멀리 날아요', 'Build speed before the ramp and jump at its very edge to fly farther')
+      : why === 'flip' ? L('🔄 공중제비를 다 못 돌고 떨어졌어요 — 높이 뜬 점프에서만 길게 누르고, 낮은 점프는 짧게 톡', '🔄 The flip did not make it around — hold only on big jumps; on small ones just tap')
+      : why === 'head' ? L('💥 머리부터 떨어졌어요 — 공중에서 손을 놓으면 자세가 저절로 돌아와요. 둔덕에선 속도를 줄여요', '💥 Landed head first — let go in the air and the bike levels itself. Slow down for bumps')
+      : why === 'steep' ? L('⛰ 급경사에서 앞으로 고꾸라졌어요 — 가파른 곳은 뒤로 기울여 속도를 줄이고, 점프한 뒤엔 손을 놓아 땅에 맞춰요', '⛰ Pitched over on the steep part — lean back to slow down there, and let go after a jump so the bike matches the ground')
+      : L('착지할 때 자전거를 땅 경사에 맞추면 "완벽 착지" — 공중에서 기울여 앞뒤를 맞춰 보세요', 'Match the bike to the slope when you land for a "perfect landing" — tilt in the air to adjust');
     // 바로 다시 하게: 별(크게) · 최고 기록까지 남은 거리 · 한라산 몇 % 내려왔나
-    const sAll = SAVE.stars[k], newStar = stars > starsBefore;
-    $('rStars').innerHTML = '★'.repeat(sAll) + '☆'.repeat(3 - sAll) + '<small>' + (mode === 'daily' ? '오늘의 산 별 ' : '이 산 별 ') + sAll + '/3' + (newStar ? ' · 새 별!' : sAll < 3 ? ' · 남은 목표를 노려 보세요' : ' · 다 모았어요') + '</small>';
+    const sAll = Math.min(3, num(SAVE.stars[k])), newStar = stars > starsBefore;
+    $('rStars').innerHTML = '★'.repeat(sAll) + '☆'.repeat(3 - sAll) + '<small>' + (mode === 'daily' ? L('오늘의 산 별 ', "Today's stars ") : L('이 산 별 ', 'Stars here ')) + sAll + '/3' + (newStar ? L(' · 새 별!', ' · new star!') : sAll < 3 ? L(' · 남은 목표를 노려 보세요', ' · go for the rest') : L(' · 다 모았어요', ' · all collected')) + '</small>';
     const far = $('rFar'), d = Math.round(st.dist);
     far.classList.toggle('best', hadFar && d > farBefore);
-    far.textContent = !hadFar ? '🏁 첫 기록 ' + fmt(d) + ' m' : d > farBefore ? '🏁 가장 멀리 왔어요! (전 ' + fmt(farBefore) + ' m)' : d === farBefore ? '🏁 최고 기록과 같아요 (' + fmt(d) + ' m)' : '🏁 최고 기록까지 ' + fmt(farBefore - d) + ' m';
+    far.textContent = !hadFar ? L('🏁 첫 기록 ', '🏁 First run: ') + fmt(d) + ' m' : d > farBefore ? L('🏁 가장 멀리 왔어요! (전 ' + fmt(farBefore) + ' m)', '🏁 Your farthest yet! (was ' + fmt(farBefore) + ' m)') : d === farBefore ? L('🏁 최고 기록과 같아요 (' + fmt(d) + ' m)', '🏁 Tied your best (' + fmt(d) + ' m)') : L('🏁 최고 기록까지 ' + fmt(farBefore - d) + ' m', '🏁 ' + fmt(farBefore - d) + ' m short of your best');
     const H_ = C.HALLA, alt = C.hallaAlt(x), lmPass = ride.m.lms.filter(l => l.passed).sort((a, b) => b.x - a.x)[0];
-    $('rHalla').textContent = st.halla ? '🎉 한라산 하산 완주 — 백록담에서 관음사까지!' : '⛰ 한라산 ' + Math.round(Math.max(0, Math.min(1, (x - ride.startX) / (H_.len - ride.startX))) * 100) + '% 내려옴' + (alt != null ? ' · 해발 ' + fmt(Math.round(alt / 10) * 10) + 'm' : '') + (lmPass ? ' · ' + lmPass.name + ' 지남' : '');
+    const hallaPct = Math.round(Math.max(0, Math.min(1, (x - ride.startX) / (H_.len - ride.startX))) * 100);
+    $('rHalla').textContent = st.halla ? L('🎉 한라산 하산 완주 — 백록담에서 관음사까지!', '🎉 Hallasan descent complete — summit to Gwaneumsa!') : L('⛰ 한라산 ' + hallaPct + '% 내려옴', '⛰ ' + hallaPct + '% down Hallasan') + (alt != null ? L(' · 해발 ', ' · ') + fmt(Math.round(alt / 10) * 10) + 'm' : '') + (lmPass ? L(' · ' + lmPass.name + ' 지남', ' · past ' + (lmPass.en || lmPass.name)) : '');
     $('rDist').textContent = fmt(st.dist); $('rScore').textContent = fmt(st.score); $('rCoins').textContent = st.coins;
-    $('rFlips').textContent = st.flips; $('rCombo').textContent = '×' + (1 + st.maxCombo); $('rUpper').textContent = st.uppers;
-    $('rBest').innerHTML = isBest && prev ? '<span class="newbest">🎉 새 기록!</span> (전 기록 ' + fmt(num(prev.score)) + '점)' : prev ? '내 기록 ' + fmt(num(prev.score)) + '점' : '첫 기록!';
+    $('rFlips').textContent = st.flips + num(st.poses) + num(st.wheelies); $('rCombo').textContent = '×' + (1 + st.maxCombo); $('rUpper').textContent = num(st.nears);
+    $('rBest').innerHTML = isBest && prev ? '<span class="newbest">' + L('🎉 새 기록!', '🎉 New best!') + '</span>' + L(' (전 기록 ' + fmt(num(prev.score)) + '점)', ' (was ' + fmt(num(prev.score)) + ' pts)') : prev ? L('내 기록 ' + fmt(num(prev.score)) + '점', 'Your best: ' + fmt(num(prev.score)) + ' pts') : L('첫 기록!', 'First record!');
+    lastRun = { dist: Math.round(st.dist), score: st.score, stars: stars, halla: st.halla ? 100 : hallaPct, done: !!st.halla, best: isBest, tricks: st.flips + num(st.poses) + num(st.wheelies), nears: num(st.nears), daily: mode === 'daily', seed };
     $('rGoals').innerHTML = ride.goals.map((g, i) => '<span class="goal' + (goalDone(g, st) ? ' done' : '') + '">' + (goalDone(g, st) ? '★ ' : '☆ ') + GOAL_TXT[g.k](g.n) + '</span>').join('');
-    $('bSwitch').textContent = mode === 'daily' ? '자유 주행 (무작위 산)' : '오늘의 산으로';
+    $('bSwitch').textContent = mode === 'daily' ? L('🎲 무작위 산', '🎲 Random') : L('📅 오늘의 산', '📅 Today');
+    $('bAgain').textContent = Input.mode === 'keys' ? L('한 판 더 (R)', 'Again (R)') : L('한 판 더', 'Again');
+    if (!shot) shotWant = 1;   // 찍어 둔 순간이 없으면 끝난 자리라도 기록 카드 배경으로
     setTimeout(() => { if (over) { showOnly('ovResult'); setControls(false); } }, 650);
   }
 
@@ -6142,9 +6505,11 @@ void main() {
     // 표지판
     for (const f of m.feats) {
       let x = null, label = null, col = null;
-      if (f.type === 'cave') { x = f.sign; label = '천천히'; col = '#2f8f4e'; }
-      else if (f.type === 'upper') { x = f.lip.x - 9; label = '⬆ 위 길'; col = '#3b82c4'; }
-      else if (f.type === 'gap') { x = f.lip.x - 9; label = '점프!'; col = '#e8553d'; }
+      if (f.type === 'cave') { x = f.sign; label = L('천천히', 'Slow'); col = '#2f8f4e'; }
+      else if (f.type === 'upper') { x = f.lip.x - 9; label = L('⬆ 위 길', '⬆ High road'); col = '#3b82c4'; }
+      else if (f.type === 'gap') { x = f.lip.x - 9; label = L('점프!', 'Jump!'); col = '#e8553d'; }
+      else if (f.type === 'herd' && f.sign != null) { x = f.sign; label = L('🦌 노루 주의', '🦌 Deer!'); col = '#8a5a2b'; }
+      else if (f.type === 'gust') { x = f.sign; label = f.wind > 0 ? L('💨 뒤바람', '💨 Tailwind') : L('💨 맞바람', '💨 Headwind'); col = '#3f8fb5'; }
       if (x == null || x < left || x > right) continue;
       const g = m.groundAt(x); if (!g) continue;
       ctx.strokeStyle = '#5b4636'; ctx.lineWidth = 0.08 * s; ctx.beginPath(); ctx.moveTo(sx(x), sy(g.y)); ctx.lineTo(sx(x), sy(g.y + 1.5)); ctx.stroke();
@@ -6204,6 +6569,10 @@ void main() {
       ctx.fillStyle = '#6d6a66'; ctx.beginPath(); ctx.arc(sx(rk.x), sy(rk.y + C.ROCK_R + rk.h), C.ROCK_R * s, 0, 7); ctx.fill();
     }
     for (const b of ride.boulders) { if (b.state !== 'roll') continue; ctx.fillStyle = b.lane === 0 ? '#5f5b57' : 'rgba(95,91,87,.5)'; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y + b.r), b.r * s, 0, 7); ctx.fill(); }
+    for (const h of m.herds) {   // 노루 떼: 길 위에 있는 동안만
+      if (h.state !== 1 || h.t < C.HERD.t0 || h.t > C.HERD.t1) continue;
+      ctx.fillStyle = '#8a5a2b'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(sx(h.x - 0.6 + i * 0.6), sy(h.y + 0.5 + 0.1 * Math.abs(Math.sin(performance.now() / 110 + i))), 0.4 * s, 0.26 * s, 0, 0, 7); ctx.fill(); }
+    }
     for (const ml of m.melts) {
       if (ml.state === 3 || ml.x < view.x - 40 || ml.x > view.x + 60) continue;
       ctx.fillStyle = '#dff1fb'; ctx.beginPath(); ctx.moveTo(sx(ml.x - 3.4), sy(ml.y + 4.4)); ctx.lineTo(sx(ml.x + 3.4), sy(ml.y + 4.4)); ctx.lineTo(sx(ml.x + 2.6), sy(ml.y + 3.4)); ctx.lineTo(sx(ml.x - 2.6), sy(ml.y + 3.4)); ctx.closePath(); ctx.fill();
@@ -6258,13 +6627,13 @@ void main() {
     const st = ride.stats;
     const alt = C.hallaAlt(ride.chassis.getPosition().x);
     $('hDist').textContent = fmt(st.dist) + ' m' + (alt != null ? ' · ⛰ ' + fmt(Math.round(alt / 10) * 10) + 'm' : '');   // 한라산에선 해발도
-    $('hScore').textContent = fmt(st.score) + '점 · 🪙 ' + st.coins;
+    $('hScore').textContent = fmt(st.score) + L('점 · 🪙 ', ' pts · 🪙 ') + st.coins;
     const mult = ride.mult(), hc = $('hCombo');
-    hc.firstChild.nodeValue = '흐름 ×' + mult + (ride.flow() > 0 ? ' ⚡' : '');
+    hc.firstChild.nodeValue = L('흐름 ×', 'Flow ×') + mult + (ride.flow() > 0 ? ' ⚡' : '');
     hc.classList.toggle('hot', ride.combo >= 3);
     $('hFlow').firstChild.style.width = (ride.combo > 0 ? Math.max(0, 1 - ride.groundT / 4) * 100 : 0) + '%';
     const S = ride.slide, hs = $('hSlide'), mg = Math.max(0, S.margin);
-    $('hSlideT').textContent = SLIDE_ICON[S.kind] + ' ' + SLIDE_NAME[S.kind] + ' ' + Math.round(mg) + ' m · 버팀 ' + (S.spare > 0 ? '●' : '○') + (S.surge > 0 ? ' · 돌진!' : S.warn > 0 ? ' · 온다!' : '');
+    $('hSlideT').textContent = SLIDE_ICON[S.kind] + ' ' + SLIDE_NAME[S.kind] + ' ' + Math.round(mg) + L(' m · 버팀 ', ' m · spare ') + (S.spare > 0 ? '●' : '○') + (S.surge > 0 ? L(' · 돌진!', ' · surge!') : S.warn > 0 ? L(' · 온다!', ' · incoming!') : '');
     $('hGap').firstChild.style.width = Math.round(100 - mg / C.SLIDE.maxMargin * 100) + '%';
     hs.classList.toggle('surge', S.surge > 0 || S.warn > 0); hs.classList.toggle('near', !(S.surge > 0 || S.warn > 0) && mg < 20);
     $('hGoals').innerHTML = ride.goals.map((g, i) => '<span class="' + (goalDone(g, st) ? 'done' : '') + '">' + (goalDone(g, st) ? '★ ' : GOAL_ICON[i] + ' ') + GOAL_TXT[g.k](g.n) + '</span>').join('');
@@ -6272,19 +6641,36 @@ void main() {
     const x = ride.chassis.getPosition().x;
     let hint = '';
     const bl = ride.boulders.find(b => b.state === 'roll' && b.lane === 0 && !b.hit && b.x < x && x - b.x < 14 && b.v > ride.speed());
-    if (bl) hint = '⚠ 뒤에서 바위가 와요 — 점프로 넘겨요!';
+    if (bl) hint = L('⚠ 뒤에서 바위가 와요 — 점프로 넘겨요!', '⚠ Boulder from behind — jump over it!');
     const ml = ride.m.melts.find(q => q.state === 1 && q.x > x && q.x - x < 36);
-    if (!hint && ml) hint = '🧊 얼음이 녹아요 — 쏟아지기 전에 지나가요!';
-    if (!hint && ride.slide.warn > 0) hint = '⚠ ' + SLIDE_NAME[ride.slide.kind] + ' 돌진 — 속도를 올려요!';
+    if (!hint && ml) hint = L('🧊 얼음이 녹아요 — 쏟아지기 전에 지나가요!', '🧊 The ice is melting — get through before it falls!');
+    const hd = ride.m.herds.find(h => h.state === 1 && !h.passed && h.x > x && h.t < C.HERD.t1);
+    if (!hint && hd) hint = L('🦌 노루 떼 — 점프로 넘거나, 다 건널 때까지 늦춰요', '🦌 Deer crossing — jump over, or slow down until they pass');
+    if (!hint) for (const f of ride.m.feats) if (f.type === 'cave' && !(f.H > 3) && f.x0 - x < 28 && f.x1 > x) { hint = L('🐢 낮은 동굴 — 뒤로 기울여 천천히! (여유 20 m 이상 벌어 두기)', '🐢 Low cave — lean back and go slow! (keep a 20 m+ lead)'); break; }
+    if (!hint && ride.slide.warn > 0) hint = '⚠ ' + SLIDE_NAME[ride.slide.kind] + L(' 돌진 — 속도를 올려요!', ' surge — speed up!');
     if (!hint) for (const f of ride.m.feats) {
-      if (f.type === 'cave' && f.x0 - x < 28 && f.x1 > x) { hint = '🐢 낮은 동굴 — 뒤로 기울여 천천히!'; break; }
-      if (f.type === 'upper' && f.lip.x - x < 24 && f.lip.x > x) { hint = '⬆ 턱 끝에서 점프하면 위 길 (코인·점수 많음)'; break; }
-      if (f.type === 'gap' && f.lip.x - x < 20 && f.lip.x > x) { hint = '⤴ 틈 — 속도 내고 턱 끝에서 점프'; break; }
-      if (f.type === 'patch' && f.x0 - x < 22 && f.x1 > x) { hint = PATCH_HINT[f.surf]; break; }
-      if (f.type === 'rocky' && f.sign != null && f.x0 - x < 24 && f.x1 > x) { hint = '🪨 낙석 — 그림자를 보고 바위 앞에서 점프'; break; }
+      if (f.type === 'cave' && f.x0 - x < 28 && f.x1 > x) { hint = f.H > 3 ? '🕳 ' + (L(f.name, f.en) || L('동굴', 'Cave')) + L(' — 높아서 그대로 지나가요', ' — tall enough, ride straight through') : L('🐢 낮은 동굴 — 뒤로 기울여 천천히!', '🐢 Low cave — lean back and go slow!'); break; }
+      if (f.type === 'upper' && f.lip.x - x < 24 && f.lip.x > x) { hint = L('⬆ 턱 끝에서 점프하면 위 길 (코인·점수 많음)', '⬆ Jump at the edge for the high road (more coins and points)'); break; }
+      if (f.type === 'gap' && f.lip.x - x < 20 && f.lip.x > x) { hint = L('⤴ 틈 — 속도 내고 턱 끝에서 점프', '⤴ Gap — build speed and jump at the edge'); break; }
+      if (f.type === 'patch' && f.x0 - x < 22 && f.x1 > x) { hint = L(PATCH_HINT[f.surf][0], PATCH_HINT[f.surf][1]); break; }
+      if (f.type === 'rocky' && f.sign != null && f.x0 - x < 24 && f.x1 > x) { hint = L('🪨 낙석 — 그림자를 보고 바위 앞에서 점프', '🪨 Rockfall — watch the shadow and jump before the rock'); break; }
+      if (f.type === 'gust' && f.x0 - x < 22 && f.x1 > x) { hint = f.wind > 0 ? L('💨 뒤바람 — 그대로 타고 달려요', '💨 Tailwind — let it carry you') : L('💨 맞바람 — 앞으로 숙여 속도를 지켜요', '💨 Headwind — lean forward to hold your speed'); break; }
+      if (f.type === 'herd' && f.hx != null && f.hx - x < 55 && f.hx > x) { hint = L('🦌 노루가 길을 건널 수 있어요', '🦌 Deer may cross ahead'); break; }
     }
-    if (!hint && ride.inAir && ride.airT > 0.3 && st.flips === 0 && ride.time < 90) hint = '공중에서 길게 누르면 백플립!';
-    const hh = $('hHint'); if (hint) hh.textContent = hint; hh.style.opacity = hint ? 1 : 0;
+    if (!hint && ride.inAir && ride.airT > 0.3 && ride.time < 120) {   // 공중 기술은 달리면서 하나씩: 백플립 → 포즈 → 앞구르기
+      if (st.flips === 0) hint = L('공중에서 길게 누르면 백플립!', 'Hold in the air for a backflip!');
+      else if (num(st.poses) === 0) hint = L('공중에서 짧게 톡 = 포즈 +200', 'Quick tap in the air = pose +200');
+      else if (num(st.fronts) === 0 && num(SAVE.runs) > 3) hint = L('뜬 뒤 앞으로 더 숙이고 길게 = 앞구르기', 'Lean further forward after takeoff + hold = frontflip');
+    }
+    const notMoved = st.dist < 3 && ride.time < 25;   // 아직 출발을 못 했으면 몇 판째든 계속 안내
+    if (!hint && (notMoved || (num(SAVE.runs) <= 2 && ride.time < 6)) && !ride.inAir) {   // 처음 두 판: 어떻게 속도를 내는지
+      const v = ride.chassis.getLinearVelocity().x;
+      if (v < 4) hint = Input.mode === 'tilt' ? (SAVE.view === 'fp' ? L('📱 폰을 앞으로 숙여서 속도를 내요', '📱 Tip the phone forward to speed up') : L('📱 폰을 오른쪽으로 기울여 속도를 내요', '📱 Tilt the phone right to speed up')) : Input.mode === 'touch' ? L('👈 왼쪽 막대를 오른쪽으로 밀어 속도를 내요', '👈 Slide the left bar to the right to speed up') : L('→ 키를 눌러 속도를 내요', 'Press → to speed up');
+      else if (num(SAVE.runs) <= 2 && ride.time < 8) hint = L('좋아요! 턱이 보이면 ' + (Input.mode === 'keys' ? 'Space' : Input.mode === 'touch' ? '점프 단추 톡' : '화면 톡') + ' = 점프', 'Nice! At a ramp, ' + (Input.mode === 'keys' ? 'press Space' : Input.mode === 'touch' ? 'tap the jump button' : 'tap the screen') + ' to jump');
+    }
+    const hh = $('hHint'); if (hint) hh.textContent = hint; hh.style.opacity = hint ? 1 : 0; hh.classList.toggle('urge', !!hint && notMoved && ride.time > 2);
+    const gl = $('hGoals'); gl.classList.toggle('dim', ride.time > 8);   // 목표는 8초 뒤부터 흐리게 (화면 덜 어지럽게)
+    if (toastUntil && performance.now() > toastUntil) { $('hToast').style.display = 'none'; toastUntil = 0; }
   }
 
   // ---------- 1인칭 (본편과 같은 방식: 물리는 2D, 라이더 눈높이에서 앞(+x)을 원근으로 펼쳐 그림) ----------
@@ -6432,9 +6818,9 @@ void main() {
     // 표지판 (길 오른쪽)
     for (const ft of m.feats) {
       let x = null, label = null, col = null;
-      if (ft.type === 'cave') { x = ft.sign; label = '🐢 천천히'; col = '#2f8f4e'; }
-      else if (ft.type === 'upper') { x = ft.lip.x - 9; label = '⬆ 위 길'; col = '#3b82c4'; }
-      else if (ft.type === 'gap') { x = ft.lip.x - 9; label = '점프!'; col = '#e8553d'; }
+      if (ft.type === 'cave') { x = ft.sign; label = L('🐢 천천히', '🐢 Slow'); col = '#2f8f4e'; }
+      else if (ft.type === 'upper') { x = ft.lip.x - 9; label = L('⬆ 위 길', '⬆ High road'); col = '#3b82c4'; }
+      else if (ft.type === 'gap') { x = ft.lip.x - 9; label = L('점프!', 'Jump!'); col = '#e8553d'; }
       if (x == null || x < camX + 0.5 || x > camX + 70) continue;
       const g = m.groundAt(x); if (!g) continue;
       const P = proj(x, g.y, lat(x) + 2.7), Q = proj(x, g.y + 1.7, lat(x) + 2.7); if (!P || !Q) continue;
@@ -6507,7 +6893,7 @@ void main() {
     popups.forEach((p, i) => {
       const fs = Math.round(Math.min(W, H * 1.6) * (p.big ? 0.06 : 0.045) * (p.t < 0.12 ? 0.7 + p.t * 2.5 : 1));
       ctx.font = '900 ' + fs + 'px sans-serif'; ctx.globalAlpha = Math.min(1, (1.3 - p.t) / 0.4);
-      const X = W / 2, Y = Math.max(H * 0.3, 128) + 10 + i * fs * 1.15 - p.t * 30;   // HUD(위 120px) 아래에서 시작, 여러 개면 아래로 쌓음 (위로 쌓으면 목표 줄을 가림)
+      const X = W / 2, Y = (touchUI ? Math.max(H * 0.5, 190) : Math.max(H * 0.3, 128)) + 10 + i * fs * 1.15 - p.t * 30;   // HUD(위 120px) 아래에서 시작, 여러 개면 아래로 쌓음. 화면 누르기 모드는 힌트·토스트 아래
       ctx.lineWidth = Math.max(3, fs * 0.16); ctx.strokeStyle = 'rgba(15,29,43,.8)'; ctx.strokeText(p.text, X, Y); ctx.fillStyle = p.color; ctx.fillText(p.text, X, Y);
     });
     ctx.globalAlpha = 1;
@@ -6515,7 +6901,7 @@ void main() {
 
   // ---------- 흙먼지·튀김, 렌즈에 튄 진흙·물방울, 젖은 길의 비 (효과 실험실과 같은 규칙) ----------
   const DUST = ['#c8a87e', '#e0a46a', '#ffffff', '#8d857c', '#7a7069', '#8a7258', '#7a6048'], SPRAY = { mud: ['#5a3920', '#6e4a2c'], ice: ['#ffffff', '#bfe8fb'], rock: ['#9a958f', '#bdb7b0'], wet: ['#a9bed3', '#d4e2ef'] };
-  let sprayAcc = 0, lensAcc = 0, rainK = 0;
+  let sprayAcc = 0, lensAcc = 0, rainK = 0, gustAcc = 0;
   const lens = [], rainDrops = Array.from({ length: 90 }, () => ({ x: Math.random() * 1.1, y: Math.random(), l: 0.5 + Math.random() }));
   function updateParts(dt, spawn) {
     if (spawn && playing && !over && ride.grounded() > 0) {
@@ -6531,6 +6917,11 @@ void main() {
     if (!spawn && playing && !over && ride.slide.margin < 18) {   // 1인칭: 산사태가 바짝 오면 흙덩이·눈덩이가 옆으로 날아 지나감
       const S = ride.slide, p = ride.chassis.getPosition(), n = S.margin < 8 ? 4 : 2, cl = S.kind === 'avalanche' ? ['#ffffff', '#dfe8f1'] : S.kind === 'flood' ? ['#8a6b4a', '#b08a5a'] : ['#6b4a2e', '#8a6a46', '#4e4b47'];
       for (let i = 0; i < n; i++) parts.push({ x: p.x - 2 - Math.random() * 3, y: p.y + 0.3 + Math.random() * 2.4, z: (Math.random() - 0.5) * 5, vx: S.v + 6 + Math.random() * 5, vy: Math.random() * 1.5, t: 0, life: 0.9, color: cl[Math.floor(Math.random() * cl.length)], fly: true });
+    }
+    if (playing && !over && ride.gustNow) {   // 돌풍: 바람 줄기가 부는 방향으로 지나감
+      const g = ride.gustNow, p = ride.chassis.getPosition(), v = ride.chassis.getLinearVelocity();
+      gustAcc += 30 * dt;
+      while (gustAcc >= 1) { gustAcc -= 1; parts.push({ x: p.x + (g.dir > 0 ? -8 + Math.random() * 14 : 4 + Math.random() * 22), y: p.y + 0.2 + Math.random() * 3.2, z: (Math.random() - 0.5) * 8, vx: v.x * 0.5 + g.dir * (16 + Math.random() * 10), vy: 0, t: 0, life: 0.5, color: '#ffffff', fly: true }); }
     }
     parts = parts.filter(p => (p.t += dt) < p.life);
     for (const p of parts) { if (!p.fly) p.vy -= 9 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
@@ -6585,17 +6976,45 @@ void main() {
     }
   }
 
+  // 돌풍 구간: 바람 줄기 (옆 보기 = 부는 쪽으로 가로질러, 1인칭 = 맞바람은 앞에서 밀려오고 뒤바람은 앞으로 빨려 들어감)
+  const gusts2d = Array.from({ length: 18 }, () => ({ x: Math.random(), y: Math.random(), l: 0.6 + Math.random() * 0.8 }));
+  let gustK = 0;
+  function drawGust(dt) {
+    const g = ride.gustNow && playing && !over ? ride.gustNow.dir : 0;
+    gustK += ((g ? 1 : 0) - gustK) * (1 - Math.exp(-dt / 0.3)); if (g) drawGust.dir = g;
+    if (gustK < 0.03) return;
+    const dir = drawGust.dir || 1, fpv = SAVE.view === 'fp';
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.55 * gustK).toFixed(3) + ')'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath();
+    for (const w of gusts2d) {
+      w.x += dir * dt * (1.1 + 0.5 * w.l); if (w.x > 1.15) { w.x = -0.15; w.y = Math.random(); } if (w.x < -0.15) { w.x = 1.15; w.y = Math.random(); }
+      if (fpv) {   // 가운데(먼 곳)에서 가장자리로: 맞바람은 x 가 줄어드는 쪽을 '바깥으로' 읽음
+        const u = dir < 0 ? 1.15 - w.x : w.x + 0.15, a = w.y * Math.PI * 2, r0 = (0.08 + 0.5 * (1 - u / 1.3)) * Math.max(W, H), r1 = r0 + 0.07 * w.l * Math.max(W, H) * (0.4 + (1 - u / 1.3));
+        ctx.moveTo(W / 2 + Math.cos(a) * r0, H * 0.42 + Math.sin(a) * r0 * 0.6); ctx.lineTo(W / 2 + Math.cos(a) * r1, H * 0.42 + Math.sin(a) * r1 * 0.6);
+      } else { const X = w.x * W, Y = (0.12 + 0.7 * w.y) * H, len = 0.1 * w.l * W; ctx.moveTo(X, Y); ctx.quadraticCurveTo(X + dir * len * 0.5, Y - 5, X + dir * len, Y + 2); }
+    }
+    ctx.stroke();
+  }
+  function drawSlow() {   // 슬로모션: 가장자리가 어두워짐
+    if (zoomK < 0.02) return;
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.34, W / 2, H / 2, Math.max(W, H) * 0.74);
+    g.addColorStop(0, 'rgba(8,18,34,0)'); g.addColorStop(1, 'rgba(8,18,34,' + (0.6 * zoomK).toFixed(3) + ')');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
   // 3D (블렌더 모델 + three.js, ride-3d.js): 1인칭·옆 보기 둘 다. 글자·속도선·비·렌즈·넘어짐 빨강은 위 2D 캔버스에
-  function render3D(dt) {
+  // dt = 세상 시간(슬로모션이면 느림), rdt = 진짜 시간(글자·화면 효과)
+  function render3D(dt, rdt) {
     const side = SAVE.view !== 'fp';
     if (!paused) updateParts(dt, side);
     const lift = Input.mode === 'touch' && playing ? 1.0 : 0;   // 폰: 아래 단추에 가리지 않게 자전거를 조금 위로
-    if (!R3D || !R3D.render({ ride, dt, phiDeg, ghost, fp, paused, mode: side ? 'side' : 'fp', parts, lift, tension: fp.level })) return false;
+    if (!R3D || !R3D.render({ ride, dt, phiDeg, ghost, fp, paused, mode: side ? 'side' : 'fp', parts, lift, tension: fp.level, zoom: zoomK })) return false;
+    if (shotWant > 0 && --shotWant === 0) takeShot();
     ctx.clearRect(0, 0, W, H);
     if (playing && !paused) drawSpeedLines(dt);
     drawTension();
     drawWeather(paused ? 0 : dt);
-    drawPopupsFP(paused ? 0 : dt);
+    drawGust(paused ? 0 : dt);
+    drawSlow();
+    drawPopupsFP(paused ? 0 : rdt);
     if (fp.crash > 0) { ctx.fillStyle = 'rgba(201,72,52,' + (0.35 * fp.crash) + ')'; ctx.fillRect(0, 0, W, H); }
     return true;
   }
@@ -6603,12 +7022,15 @@ void main() {
   function frame(now) {
     const dt = Math.min(0.05, Math.max(0, (now - last) / 1000) || 0.016); last = now;
     phiDeg = Input.update(dt);
-    if (ride && playing && !paused && !over) {
+    const run = !!(ride && playing && !paused && !over), wdt = dt * (run && slowT > 0 ? 0.35 : 1);   // 세상 시간
+    if (run) { slowT = Math.max(0, slowT - dt); slowCool = Math.max(0, slowCool - dt); }
+    zoomK += ((run && slowT > 0 ? 1 : 0) - zoomK) * (1 - Math.exp(-dt / 0.09));
+    if (run && now >= graceUntil) {
       ride.phi = phiDeg * DEG; ride.hold = Input.hold;
       if (jumpBuf > 0) { if (ride.jump()) jumpBuf = 0; else jumpBuf -= dt; }
-      ride.step(dt);
+      ride.step(wdt);
       handleEvents();
-      recT += dt; if (recT >= 0.1) { recT -= 0.1; const p = ride.chassis.getPosition(); ghostRec.push([+p.x.toFixed(2), +p.y.toFixed(2), +ride.chassis.getAngle().toFixed(2)]); }
+      recT += wdt; if (recT >= 0.1) { recT -= 0.1; const p = ride.chassis.getPosition(); ghostRec.push([+p.x.toFixed(2), +p.y.toFixed(2), +ride.chassis.getAngle().toFixed(2)]); }
       A.loops(ride.speed(), ride.grounded() > 0, true, ride.surfNow);
       if (ride.result) endRun();
     }
@@ -6623,25 +7045,75 @@ void main() {
     if (glc.style.display !== (use3D ? 'block' : 'none')) glc.style.display = use3D ? 'block' : 'none';
     if (ride) {
       updateWeather(paused ? 0 : dt);
-      if (!(use3D && render3D(dt))) {   // 3D 준비 전·WebGL 없음 → 예전 2D
-        if (SAVE.view === 'fp') { parts = []; renderFP(dt); }
-        else { if (!paused) updateCamera(dt); drawBackground(); drawWorld(now / 1000); drawDyn2D(); drawGhost(); drawBike(); drawFx(paused ? 0 : dt); if (playing && !paused) drawSpeedLines(dt); }
-        drawTension(); drawWeather(paused ? 0 : dt);
+      if (!(use3D && render3D(wdt, dt))) {   // 3D 준비 전·WebGL 없음 → 예전 2D
+        if (SAVE.view === 'fp') { parts = []; renderFP(wdt); }
+        else { if (!paused) updateCamera(wdt); drawBackground(); drawWorld(now / 1000); drawDyn2D(); drawGhost(); drawBike(); drawFx(paused ? 0 : wdt); if (playing && !paused) drawSpeedLines(wdt); }
+        drawTension(); drawWeather(paused ? 0 : wdt); drawGust(paused ? 0 : wdt); drawSlow();
       }
     }
     hud();
     requestAnimationFrame(frame);
   }
 
+  // ---------- 기록 카드 (11-10 사용자 선택: 결과를 그림 한 장으로 저장·공유) ----------
+  // 달리는 중 멋진 순간(공중제비 착지·아슬아슬·지점 통과)의 3D 화면을 작게 찍어 두었다가 배경으로 씀. 없으면 하늘색 바탕
+  function takeShot() {
+    try {
+      const c = shot || document.createElement('canvas'); c.width = 1200; c.height = 630;
+      const x = c.getContext('2d'), k = Math.max(1200 / glc.width, 630 / glc.height), w = glc.width * k, h = glc.height * k;
+      x.drawImage(glc, (1200 - w) / 2, (630 - h) / 2, w, h);
+      shot = c; shotAt = ride.time;
+    } catch (e) { shot = null; }
+  }
+  function makeCard() {
+    const r = lastRun; if (!r) return null;
+    const c = document.createElement('canvas'); c.width = 1200; c.height = 630;
+    const x = c.getContext('2d'), F = '-apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif';
+    const sky = x.createLinearGradient(0, 0, 0, 630); sky.addColorStop(0, '#5aa9e6'); sky.addColorStop(1, '#cfe9f7'); x.fillStyle = sky; x.fillRect(0, 0, 1200, 630);
+    if (shot) { try { x.drawImage(shot, 0, 0); } catch (e) { } }
+    const sh = x.createLinearGradient(0, 250, 0, 630); sh.addColorStop(0, 'rgba(10,20,34,0)'); sh.addColorStop(1, 'rgba(10,20,34,.88)'); x.fillStyle = sh; x.fillRect(0, 250, 1200, 380);
+    const top = x.createLinearGradient(0, 0, 0, 150); top.addColorStop(0, 'rgba(10,20,34,.6)'); top.addColorStop(1, 'rgba(10,20,34,0)'); x.fillStyle = top; x.fillRect(0, 0, 1200, 150);
+    x.textBaseline = 'alphabetic'; x.fillStyle = '#fff'; x.shadowColor = 'rgba(0,0,0,.45)'; x.shadowBlur = 12;
+    x.font = '900 54px ' + F; x.textAlign = 'left'; x.fillText('🚲 FIXIE DROP', 48, 84);
+    x.font = '800 30px ' + F; x.textAlign = 'right'; x.fillText(r.done ? L('한라산 하산 완주!', 'Hallasan descent complete!') : L('한라산 ' + r.halla + '% 하산', r.halla + '% down Hallasan'), 1152, 70);
+    x.font = '700 24px ' + F; x.fillText((r.best ? L('🎉 새 기록 · ', '🎉 New best · ') : '') + (r.daily ? L('오늘의 산 #', "Today's mountain #") + String(r.seed).slice(4) : L('무작위 산 #', 'Random mountain #') + r.seed), 1152, 108);
+    x.textAlign = 'left'; x.font = '900 150px ' + F; const dTxt = fmt(r.dist); x.fillText(dTxt, 44, 512);
+    const dw = x.measureText(dTxt).width; x.font = '900 64px ' + F; x.fillText('m', 60 + dw, 512);
+    x.font = '800 40px ' + F; x.fillText(fmt(r.score) + L('점', ' pts') + '   ' + L('트릭 ', 'tricks ') + r.tricks + '   ' + L('아슬아슬 ', 'close calls ') + r.nears, 50, 580);
+    x.textAlign = 'right'; x.font = '900 84px ' + F; x.fillStyle = '#ffd23f'; x.fillText('★'.repeat(r.stars) + '☆'.repeat(3 - r.stars), 1152, 580);
+    return c;
+  }
+  let cardBlob = null;
+  function openShare() {
+    const c = makeCard(); if (!c) return;
+    cardBlob = null; { const m = $('shareMsg'); if (m.dataset.ko != null) m.innerHTML = LANG === 'en' ? m.dataset.en : m.dataset.ko; }
+    try { $('shareImg').src = c.toDataURL('image/jpeg', 0.9); c.toBlob(b => { cardBlob = b; }, 'image/jpeg', 0.9); } catch (e) { toast(L('그림을 만들지 못했어요', 'Could not make the picture'), 3); return; }
+    showOnly('ovShare');
+  }
+  async function shareCard() {
+    if (!cardBlob) return;
+    const name = 'fixie-drop-' + (lastRun ? lastRun.dist : 0) + 'm.jpg', text = L('Fixie Drop — 한라산을 ' + fmt(lastRun.dist) + ' m 내려왔어요!', 'Fixie Drop — I rode ' + fmt(lastRun.dist) + ' m down Hallasan!');
+    try {
+      const file = new File([cardBlob], name, { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Fixie Drop', text }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    // 안내는 카드 안 글줄에 (토스트는 카드에 가려짐). 다른 사이트 안(iframe)에서는 내려받기가 막혀 있어 그림을 직접 저장하게 안내
+    const say = (ko, en) => { $('shareMsg').textContent = L(ko, en); }, hold = () => (isTouch && !finePointer ? say('👆 그림을 길게 눌러 저장하세요', '👆 Press and hold the picture to save it') : say('🖱 그림을 오른쪽 단추로 눌러 저장하세요', '🖱 Right-click the picture to save it'));
+    if (inFrame) return hold();
+    try { const a = document.createElement('a'); a.href = URL.createObjectURL(cardBlob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); say('✅ 그림을 저장했어요', '✅ Picture saved'); }
+    catch (e) { hold(); }
+  }
+  function setLang(l) { LANG = l; window.RIDE_LANG = l; SAVE.lang = l; save(); applyLang(); prepare(); refreshStart(); refreshPause(); }
+
   // ---------- 조작 연결 ----------
   window.addEventListener('keydown', e => {
     const k = e.key, onOverlay = !playing || over;
     if (k === 'ArrowRight' || k === 'd' || k === 'D') Input.keyR = true;
     else if (k === 'ArrowLeft' || k === 'a' || k === 'A') Input.keyL = true;
-    else if (k === ' ' || k === 'ArrowUp' || k === 'w' || k === 'W') { if (onOverlay && !paused) { if (!e.repeat) startRun(); } else if (!e.repeat) press(); e.preventDefault(); }
-    else if (k === 'Enter') { if (paused) resume(); else if (onOverlay) startRun(); }
+    else if (k === ' ' || k === 'ArrowUp' || k === 'w' || k === 'W') { if ($('ovHelp').classList.contains('show')) { if (!e.repeat) $('bHelpOk').click(); } else if (onOverlay && !paused) { if (!e.repeat) go(); } else if (!e.repeat) press(); e.preventDefault(); }
+    else if (k === 'Enter') { if ($('ovHelp').classList.contains('show')) $('bHelpOk').click(); else if (paused) resume(); else if (onOverlay) go(); }
     else if (k === 'r' || k === 'R') { prepare(); startRun(); }
-    else if (k === 'p' || k === 'P' || k === 'Escape') { paused ? resume() : pause(); }
+    else if (k === 'p' || k === 'P' || k === 'Escape') { if ($('ovHelp').classList.contains('show')) $('bHelpOk').click(); else paused ? resume() : pause(); }
     else if (k === 'm' || k === 'M') { A.setMute(!SAVE.mute); $('bMute').textContent = SAVE.mute ? '🔇' : '🔊'; }
     else if (k === 'v' || k === 'V') toggleView();
     if (k.indexOf('Arrow') === 0) e.preventDefault();
@@ -6653,13 +7125,15 @@ void main() {
     else if (k === ' ' || k === 'ArrowUp' || k === 'w' || k === 'W') release();
   });
   window.addEventListener('blur', () => { Input.releaseAll(); pause(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { Input.releaseAll(); pause(); A.suspend(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { Input.releaseAll(); pause(); A.suspend(); } else if (playing && !over) keepAwake(); });
+  glc.addEventListener('webglcontextlost', e => { e.preventDefault(); pause(); toast(L('화면을 다시 불러오는 중… 잠시 뒤 계속을 누르세요', 'Reloading the view… press Resume in a moment'), 4); });
   // 터치: 왼쪽 막대 = 기울이기, 오른쪽 버튼 = 점프
   const tl = $('tLeft'), knob = $('tKnob');
-  function zoneFrom(e) { const r = tl.getBoundingClientRect(), u = (e.clientX - r.left - 14) / (r.width - 28) * 2 - 1; let z = Math.max(-1, Math.min(1, u)); if (Math.abs(z) < 0.08) z = 0; Input.zone = z; knob.style.left = (50 + z * 42) + '%'; }
+  function zoneFrom(e) { const r = tl.getBoundingClientRect(), u = (e.clientX - r.left - 14) / (r.width - 28) * 2 - 1; let z = Math.max(-1, Math.min(1, u)); if (Math.abs(z) < 0.08) z = 0; Input.zone = z; knob.style.left = (50 + z * 42) + '%'; tl.classList.add('on'); }
   tl.addEventListener('pointerdown', e => { try { tl.setPointerCapture(e.pointerId); } catch (_) { } zoneFrom(e); e.preventDefault(); });
-  tl.addEventListener('pointermove', e => { if (Input.zone != null) zoneFrom(e); });
-  const tlUp = () => { Input.zone = null; knob.style.left = '50%'; };
+  tl.addEventListener('pointermove', e => { if (Input.zone != null || (e.buttons & 1)) zoneFrom(e); });   // 일시정지 뒤 손가락이 그대로 있어도 다시 잡음
+  const tlUp = () => { Input.zone = null; knob.style.left = '50%'; tl.classList.remove('on'); };
+  function resetTouchUI() { knob.style.left = '50%'; tl.classList.remove('on'); $('tJump').classList.remove('on'); }
   tl.addEventListener('pointerup', tlUp); tl.addEventListener('pointercancel', tlUp);
   const tj = $('tJump');
   tj.addEventListener('pointerdown', e => { try { tj.setPointerCapture(e.pointerId); } catch (_) { } tj.classList.add('on'); press(); e.preventDefault(); });
@@ -6667,14 +7141,27 @@ void main() {
   tj.addEventListener('pointerup', tjUp); tj.addEventListener('pointercancel', tjUp);
   cv.addEventListener('pointerdown', e => { if (Input.mode === 'tilt' && playing) { press(); e.preventDefault(); } });
   cv.addEventListener('pointerup', () => { if (Input.mode === 'tilt') release(); });
-  $('bGo').addEventListener('click', startRun);
-  $('ovStart').addEventListener('click', e => { if (e.target === $('ovStart')) startRun(); });
+  $('bGo').addEventListener('click', go);
+  $('ovStart').addEventListener('click', e => { if (e.target === $('ovStart') && !isTouch) go(); });
   $('bMode').addEventListener('click', () => { A.ensure(); A.SFX.click(); newSeed(mode === 'daily' ? 'free' : 'daily'); prepare(); refreshStart(); });
-  $('bTilt').addEventListener('click', () => { A.ensure(); enableTilt(); });
+  const toggleCtrl = () => { A.ensure(); if (Input.mode === 'tilt') { Input.mode = 'touch'; SAVE.ctrl = 'touch'; save(); refreshStart(); refreshPause(); } else { SAVE.ctrl = 'auto'; save(); enableTilt().then(refreshPause); } };
+  $('bTilt').addEventListener('click', toggleCtrl); $('pTilt').addEventListener('click', toggleCtrl);
+  $('bHelp').addEventListener('click', () => { A.ensure(); A.SFX.click(); openHelp(); });
+  $('pHelp').addEventListener('click', () => { openHelp(); });
+  $('bHelpOk').addEventListener('click', () => { A.SFX.click(); $('ovHelp').classList.remove('show'); if (!playing || over) $('ovStart').classList.add('show'); else if (paused) $('ovPause').classList.add('show'); });
+  $('bLang').addEventListener('click', () => { A.ensure(); A.SFX.click(); setLang(LANG === 'en' ? 'ko' : 'en'); });
+  $('bShare').addEventListener('click', () => { A.SFX.click(); openShare(); });
+  $('bShareGo').addEventListener('click', shareCard);
+  $('bShareClose').addEventListener('click', () => { A.SFX.click(); showOnly('ovResult'); });
+  $('pMute').addEventListener('click', () => { A.setMute(!SAVE.mute); $('bMute').textContent = SAVE.mute ? '🔇' : '🔊'; refreshPause(); });
+  $('pView').addEventListener('click', () => { toggleView(); refreshPause(); });
+  $('pInvert').addEventListener('click', () => { SAVE.invert = !SAVE.invert; save(); refreshStart(); refreshPause(); });
+  $('bHome').addEventListener('click', toTitle);
   $('bPause').addEventListener('click', () => paused ? resume() : pause());
   $('bResume').addEventListener('click', resume);
   $('bQuit').addEventListener('click', toTitle);
   $('bRestart').addEventListener('click', () => { prepare(); startRun(); });
+  $('pRestart').addEventListener('click', () => { prepare(); startRun(); });
   $('bAgain').addEventListener('click', () => { prepare(); startRun(); });
   $('bSwitch').addEventListener('click', () => { newSeed(mode === 'daily' ? 'free' : 'daily'); prepare(); refreshStart(); showOnly('ovStart'); });
   $('bMute').addEventListener('click', () => { A.setMute(!SAVE.mute); $('bMute').textContent = SAVE.mute ? '🔇' : '🔊'; });
@@ -6687,9 +7174,10 @@ void main() {
   window.addEventListener('resize', resize);
 
   if (R3D && R3D.init) R3D.init(glc);
-  newSeed('daily'); prepare(); refreshStart(); resize();
+  applyLang();
+  newSeed('daily'); prepare(); refreshStart(); resize();   // 첫 방문에도 조작법 카드 없이 바로 시작 화면 (11-10: 누르자마자 달리기 — 조작은 달리면서 한 줄씩 안내, ❓ 단추로 언제든 다시 봄)
   requestAnimationFrame(t => { last = t; frame(t); });
-  if (TEST) window.__ride = { get ride() { return ride; }, startRun, press, release, setAngle(d) { Input.testAngle = d; }, get state() { return { playing, paused, over, mode, seed, inputMode: Input.mode, view: SAVE.view }; }, toggleView, Input, view, r3d: () => (R3D && R3D.info ? R3D.info() : { state: 'none' }), get parts() { return parts.length; }, get lens() { return lens.length; }, get size() { return { W, H, DPR, iw: innerWidth, ih: innerHeight }; } };
+  if (TEST) window.__ride = { get ride() { return ride; }, startRun, press, release, setAngle(d) { Input.testAngle = d; }, get state() { return { playing, paused, over, mode, seed, inputMode: Input.mode, view: SAVE.view }; }, toggleView, Input, view, r3d: () => (R3D && R3D.info ? R3D.info() : { state: 'none' }), get parts() { return parts.length; }, get lens() { return lens.length; }, get size() { return { W, H, DPR, iw: innerWidth, ih: innerHeight }; }, get lang() { return LANG; }, setLang, get slow() { return { slowT, slowCool, zoomK }; }, slowmo, get shot() { return !!shot; }, get lastRun() { return lastRun; }, makeCard };
 })();
 </script>
 </body>
